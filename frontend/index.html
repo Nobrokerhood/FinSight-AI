@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>FinSight AI</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <!-- ========================= -->
+        <!-- HEADER -->
+        <!-- ========================= -->
+
+        <h1>FinSight AI</h1>
+
+        <p class="subtitle">
+            AI Financial Analysis Platform
+        </p>
+
+        <!-- ========================= -->
+        <!-- UPLOAD SECTION -->
+        <!-- ========================= -->
+
+        <div class="card">
+
+            <div class="upload-box">
+
+                <input
+                    type="file"
+                    id="fileInput"
+                >
+
+                <button onclick="uploadFile()">
+                    Analyze Financial Report
+                </button>
+
+            </div>
+
+            <div
+                class="loader"
+                id="loader"
+            >
+                Analyzing financial report with AI...
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- SUMMARY SECTION -->
+        <!-- ========================= -->
+
+        <div class="card">
+
+            <h2>Financial Summary</h2>
+
+            <div
+                id="summaryContent"
+                class="summary-grid"
+            >
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- COMPARISON TABLE -->
+        <!-- ========================= -->
+
+        <div class="card">
+
+            <h2>Comparison Results</h2>
+
+            <table id="comparisonTable">
+
+                <thead>
+
+                    <tr>
+                        <th>Account</th>
+                        <th>Previous Year</th>
+                        <th>Current Year</th>
+                        <th>Growth %</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- AI INSIGHTS -->
+        <!-- ========================= -->
+
+        <div class="card">
+
+            <h2>AI Financial Insights</h2>
+
+            <div id="aiInsights">
+
+                Upload a financial report to
+                generate AI insights.
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- ========================= -->
+    <!-- SCRIPT -->
+    <!-- ========================= -->
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>
