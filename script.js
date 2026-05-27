@@ -40,7 +40,7 @@ async function uploadFile() {
         // API CALL
         // =========================
         const response = await fetch(
-            "http://127.0.0.1:8000/upload",
+            "https://finsight-ai-api.onrender.com/upload",
             {
                 method: "POST",
                 body: formData
