@@ -1,47 +1,60 @@
 async function uploadFile() {
 
-    // =========================
-    // SHOW LOADER
-    // =========================
+    document.getElementById("loader").style.display = "block";
 
-    document.getElementById(
-        "loader"
-    ).style.display = "block";
-
-    // =========================
-    // GET FILE
-    // =========================
-
-    const fileInput = document.getElementById(
-        "fileInput"
-    );
+    const fileInput = document.getElementById("fileInput");
 
     if (!fileInput.files.length) {
 
         alert("Please select a file");
 
-        document.getElementById(
-            "loader"
-        ).style.display = "none";
+        document.getElementById("loader").style.display = "none";
 
         return;
     }
 
     const file = fileInput.files[0];
 
-    // =========================
-    // CREATE FORM DATA
-    // =========================
-
     const formData = new FormData();
 
     formData.append("file", file);
 
-    try {
+    formData.append(
+        "statement_type",
+        document.getElementById("statementType").value
+    );
 
-        // =========================
-        // API CALL
-        // =========================
+    formData.append(
+        "report_period_type",
+        document.getElementById("reportPeriodType").value
+    );
+
+    formData.append(
+        "from_date",
+        document.getElementById("fromDate").value
+    );
+
+    formData.append(
+        "to_date",
+        document.getElementById("toDate").value
+    );
+
+    formData.append(
+        "compare_report",
+        document.getElementById("compareReport").value
+    );
+
+    formData.append(
+        "compare_from_date",
+        document.getElementById("compareFromDate").value
+    );
+
+    formData.append(
+        "compare_to_date",
+        document.getElementById("compareToDate").value
+    );
+
+    try {
 
         const response = await fetch(
             "https://finsight-ai-aiwu.onrender.com/upload",
@@ -51,15 +64,9 @@ async function uploadFile() {
             }
         );
 
-        // =========================
-        // CHECK RESPONSE
-        // =========================
-
         if (!response.ok) {
 
-            throw new Error(
-                "API request failed"
-            );
+            throw new Error("Upload failed");
         }
 
         const data = await response.json();
@@ -67,52 +74,47 @@ async function uploadFile() {
         console.log(data);
 
         // =========================
-        // SUMMARY SECTION
+        // SUMMARY
         // =========================
 
-        const summaryDiv = document.getElementById(
-            "summaryContent"
-        );
+        const summary = data.summary;
 
-        summaryDiv.innerHTML = `
+        document.getElementById(
+            "summaryContent"
+        ).innerHTML = `
             <div class="summary-item">
                 <h3>Statement Type</h3>
-                <p>${data.summary.statement_type}</p>
+                <p>${summary.statement_type || "-"}</p>
             </div>
 
             <div class="summary-item">
                 <h3>Assets</h3>
-                <p>${data.summary.total_sections.assets}</p>
+                <p>${summary.total_sections.assets || 0}</p>
             </div>
 
             <div class="summary-item">
                 <h3>Liabilities</h3>
-                <p>${data.summary.total_sections.liabilities}</p>
+                <p>${summary.total_sections.liabilities || 0}</p>
             </div>
 
             <div class="summary-item">
                 <h3>Equity</h3>
-                <p>${data.summary.total_sections.equity}</p>
+                <p>${summary.total_sections.equity || 0}</p>
             </div>
 
             <div class="summary-item">
                 <h3>Revenue</h3>
-                <p>${data.summary.total_sections.revenue}</p>
+                <p>${summary.total_sections.revenue || 0}</p>
             </div>
 
             <div class="summary-item">
                 <h3>Expenses</h3>
-                <p>${data.summary.total_sections.expenses}</p>
-            </div>
-
-            <div class="summary-item">
-                <h3>Unknown</h3>
-                <p>${data.summary.total_sections.unknown}</p>
+                <p>${summary.total_sections.expenses || 0}</p>
             </div>
         `;
 
         // =========================
-        // COMPARISON TABLE
+        // TABLE
         // =========================
 
         const tableBody = document.querySelector(
@@ -124,9 +126,7 @@ async function uploadFile() {
         data.comparison_results.forEach(item => {
 
             const growth =
-                parseFloat(
-                    item.growth_percent || 0
-                );
+                parseFloat(item.growth_percent || 0);
 
             const growthClass =
                 growth >= 0
@@ -135,21 +135,15 @@ async function uploadFile() {
 
             const row = `
                 <tr>
+                    <td>${item.account || "-"}</td>
 
-                    <td>${item.account}</td>
+                    <td>${item.year1_value || 0}</td>
 
-                    <td>
-                        ${item.year1_value}
-                    </td>
-
-                    <td>
-                        ${item.year2_value}
-                    </td>
+                    <td>${item.year2_value || 0}</td>
 
                     <td class="${growthClass}">
                         ${growth}%
                     </td>
-
                 </tr>
             `;
 
@@ -160,83 +154,20 @@ async function uploadFile() {
         // AI INSIGHTS
         // =========================
 
-        const insightsDiv = document.getElementById(
-            "aiInsights"
-        );
-
-        // If AI exists
-        if (
-            data.ai_insights &&
-            data.ai_insights.status === "success"
-        ) {
-
-            insightsDiv.innerHTML =
-                formatAIResponse(
-                    data.ai_insights.ai_analysis
-                );
-
-        } else {
-
-            insightsDiv.innerHTML = `
-                <p>
-                    AI insights are currently unavailable.
-                </p>
-
-                <p>
-                    Financial analysis completed successfully.
-                </p>
-            `;
-        }
-
-        // =========================
-        // HIDE LOADER
-        // =========================
-
         document.getElementById(
-            "loader"
-        ).style.display = "none";
+            "aiInsights"
+        ).innerText =
+            data.ai_insights.ai_analysis ||
+            "No AI insights generated.";
 
     } catch (error) {
 
         console.error(error);
 
-        // =========================
-        // HIDE LOADER
-        // =========================
-
-        document.getElementById(
-            "loader"
-        ).style.display = "none";
-
-        alert(
-            "Error uploading file"
-        );
-    }
-}
-
-// =========================
-// FORMAT AI RESPONSE
-// =========================
-
-function formatAIResponse(text) {
-
-    if (!text) {
-
-        return `
-            <p>
-                No AI analysis available.
-            </p>
-        `;
+        alert("Error uploading file");
     }
 
-    return text
-
-        // Bold markdown
-        .replace(
-            /\*\*(.*?)\*\*/g,
-            "<strong>$1</strong>"
-        )
-
-        // Line breaks
-        .replace(/\n/g, "<br>");
+    document.getElementById(
+        "loader"
+    ).style.display = "none";
 }

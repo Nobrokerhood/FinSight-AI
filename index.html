@@ -3,19 +3,19 @@
 
 <head>
 
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
 
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
-    >
+    />
 
     <title>FinSight AI</title>
 
     <link
         rel="stylesheet"
         href="style.css"
-    >
+    />
 
 </head>
 
@@ -27,24 +27,28 @@
         <!-- HEADER -->
         <!-- ========================= -->
 
-        <h1>FinSight AI</h1>
+        <div class="header">
 
-        <p class="subtitle">
-            AI Financial Analysis Platform
-        </p>
+            <h1>FinSight AI</h1>
+
+            <p>
+                AI Financial Analysis Platform
+            </p>
+
+        </div>
 
         <!-- ========================= -->
-        <!-- UPLOAD SECTION -->
+        <!-- UPLOAD CARD -->
         <!-- ========================= -->
 
         <div class="card">
 
-            <div class="upload-box">
+            <div class="upload-section">
 
                 <input
                     type="file"
                     id="fileInput"
-                >
+                />
 
                 <button onclick="uploadFile()">
                     Analyze Financial Report
@@ -52,9 +56,145 @@
 
             </div>
 
+            <!-- ========================= -->
+            <!-- FILTERS -->
+            <!-- ========================= -->
+
+            <div class="filters-grid">
+
+                <div class="form-group">
+
+                    <label>
+                        Statement Type
+                    </label>
+
+                    <select id="statementType">
+
+                        <option value="balance_sheet">
+                            Balance Sheet
+                        </option>
+
+                        <option value="trial_balance">
+                            Trial Balance
+                        </option>
+
+                        <option value="profit_loss">
+                            Profit & Loss
+                        </option>
+
+                        <option value="income_expense">
+                            Income & Expense
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="form-group">
+
+                    <label>
+                        Report Period Type
+                    </label>
+
+                    <select id="reportPeriodType">
+
+                        <option value="financial_year">
+                            Financial Year
+                        </option>
+
+                        <option value="monthly">
+                            Monthly
+                        </option>
+
+                        <option value="quarterly">
+                            Quarterly
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="form-group">
+
+                    <label>
+                        From Date
+                    </label>
+
+                    <input
+                        type="date"
+                        id="fromDate"
+                    />
+
+                </div>
+
+                <div class="form-group">
+
+                    <label>
+                        To Date
+                    </label>
+
+                    <input
+                        type="date"
+                        id="toDate"
+                    />
+
+                </div>
+
+                <div class="form-group">
+
+                    <label>
+                        Compare Report
+                    </label>
+
+                    <select id="compareReport">
+
+                        <option value="No">
+                            No
+                        </option>
+
+                        <option value="Yes">
+                            Yes
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="form-group">
+
+                    <label>
+                        Compare From Date
+                    </label>
+
+                    <input
+                        type="date"
+                        id="compareFromDate"
+                    />
+
+                </div>
+
+                <div class="form-group">
+
+                    <label>
+                        Compare To Date
+                    </label>
+
+                    <input
+                        type="date"
+                        id="compareToDate"
+                    />
+
+                </div>
+
+            </div>
+
+            <!-- ========================= -->
+            <!-- LOADER -->
+            <!-- ========================= -->
+
             <div
-                class="loader"
                 id="loader"
+                class="loader"
             >
                 Analyzing financial report with AI...
             </div>
@@ -62,38 +202,48 @@
         </div>
 
         <!-- ========================= -->
-        <!-- SUMMARY SECTION -->
+        <!-- SUMMARY -->
         <!-- ========================= -->
 
         <div class="card">
 
-            <h2>Financial Summary</h2>
+            <h2>
+                Financial Summary
+            </h2>
 
             <div
                 id="summaryContent"
                 class="summary-grid"
             >
+
             </div>
 
         </div>
 
         <!-- ========================= -->
-        <!-- COMPARISON TABLE -->
+        <!-- TABLE -->
         <!-- ========================= -->
 
         <div class="card">
 
-            <h2>Comparison Results</h2>
+            <h2>
+                Comparison Results
+            </h2>
 
             <table id="comparisonTable">
 
                 <thead>
 
                     <tr>
+
                         <th>Account</th>
+
                         <th>Previous Year</th>
+
                         <th>Current Year</th>
+
                         <th>Growth %</th>
+
                     </tr>
 
                 </thead>
@@ -112,12 +262,13 @@
 
         <div class="card">
 
-            <h2>AI Financial Insights</h2>
+            <h2>
+                AI Financial Insights
+            </h2>
 
             <div id="aiInsights">
 
-                Upload a financial report to
-                generate AI insights.
+                Upload a financial report to generate AI insights.
 
             </div>
 
@@ -125,11 +276,7 @@
 
     </div>
 
-    <!-- ========================= -->
-    <!-- SCRIPT -->
-    <!-- ========================= -->
-
-    <script src="script.js?v=2"></script>
+    <script src="script.js"></script>
 
 </body>
 

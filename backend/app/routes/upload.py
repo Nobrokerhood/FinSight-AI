@@ -10,6 +10,7 @@ from app.services.financial_mapper import map_financial_structure
 from app.services.year_detector import detect_year_columns
 from app.services.comparison_engine import compare_financial_data
 from app.services.gemini_service import generate_financial_insights
+from app.services.income_expense_analyzer import analyze_income_expense
 
 router = APIRouter()
 
@@ -110,6 +111,19 @@ async def upload_file(file: UploadFile = File(...)):
             response["comparison_results"] = (
                 comparison_results[:10]
             )
+            # =====================================
+            # INCOME & EXPENSE ANALYSIS
+            # =====================================
+
+            if statement_type == "income_expense_statement":
+
+                income_expense_summary = (
+                    analyze_income_expense(
+                    comparison_results))
+                response[
+                    "income_expense_summary"
+                 ] = income_expense_summary
+
             # Generate AI Insights
             ai_response = generate_financial_insights(
                 comparison_results

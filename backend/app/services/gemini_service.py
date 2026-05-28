@@ -1,58 +1,137 @@
-import os
 import google.generativeai as genai
-from dotenv import load_dotenv
+import os
 
-load_dotenv()
+# =====================================
+# CONFIGURE GEMINI
+# =====================================
 
-# Load API Key
 genai.configure(
     api_key=os.getenv("GEMINI_API_KEY")
 )
 
-model = genai.GenerativeModel("gemini-2.0-flash")
+model = genai.GenerativeModel(
+    "gemini-1.5-flash"
+)
 
 
-def generate_financial_insights(comparison_results):
+# =====================================
+# GENERATE AI INSIGHTS
+# =====================================
+
+def generate_financial_insights(
+    statement_type,
+    comparison_results
+):
 
     try:
 
-        # Prepare comparison summary
-        summary_text = ""
+        # =====================================
+        # INCOME & EXPENSE STATEMENT
+        # =====================================
 
-        for item in comparison_results[:15]:
+        if statement_type == "income_expense_statement":
 
-            summary_text += f"""
-            Account: {item['account']}
-            Section: {item['section']}
-            Previous Year: {item['year1_value']}
-            Current Year: {item['year2_value']}
-            Growth: {item['growth_percent']}%
-            """
+            prompt = f"""
+Analyze this Income & Expense Statement.
 
-        # Prompt
-        prompt = f"""
-                You are a senior financial analyst.
-            Analyze the financial data below.
-            Rules:
-            - Keep response professional
-            - Keep response concise
-            - Maximum 10 points
-            - Avoid markdown symbols
-            - Use simple business language
-            - Mention important increases/decreases
-            - Mention risks
-            - Mention positive signals
-            - Give recommendations
+Focus on:
+- Total income
+- Expense control
+- Net surplus or deficit
+- Financial sustainability
+- Key risks
+- Recommendations
 
-            Financial Data:
-            {summary_text}
-            """
+Financial Data:
+{comparison_results}
+"""
 
-        response = model.generate_content(prompt)
+        # =====================================
+        # BALANCE SHEET
+        # =====================================
+
+        elif statement_type == "balance_sheet":
+
+            prompt = f"""
+Analyze this Balance Sheet.
+
+Focus on:
+- Asset growth
+- Liability management
+- Liquidity position
+- Capital strength
+- Financial risks
+- Recommendations
+
+Financial Data:
+{comparison_results}
+"""
+
+        # =====================================
+        # TRIAL BALANCE
+        # =====================================
+
+        elif statement_type == "trial_balance":
+
+            prompt = f"""
+Analyze this Trial Balance.
+
+Focus on:
+- Debit/Credit irregularities
+- Large balances
+- Suspicious movements
+- Financial observations
+- Recommendations
+
+Financial Data:
+{comparison_results}
+"""
+
+        # =====================================
+        # PROFIT & LOSS
+        # =====================================
+
+        elif statement_type == "profit_and_loss":
+
+            prompt = f"""
+Analyze this Profit & Loss Statement.
+
+Focus on:
+- Revenue trends
+- Expense trends
+- Profitability
+- Cost management
+- Business performance
+- Recommendations
+
+Financial Data:
+{comparison_results}
+"""
+
+        # =====================================
+        # DEFAULT
+        # =====================================
+
+        else:
+
+            prompt = f"""
+Analyze this financial statement.
+
+Financial Data:
+{comparison_results}
+"""
+
+        # =====================================
+        # GEMINI RESPONSE
+        # =====================================
+
+        response = model.generate_content(
+            prompt
+        )
 
         return {
             "status": "success",
-            "ai_analysis": response.text.strip()
+            "ai_analysis": response.text
         }
 
     except Exception as e:

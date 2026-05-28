@@ -1,54 +1,56 @@
 def classify_statement(columns, data):
 
-    text = " ".join(columns).lower()
+    text = " ".join(
+        [str(c).lower() for c in columns]
+    )
 
-    for row in data[:30]:
-        text += " ".join(
-            [str(v).lower() for v in row.values()]
-        )
+    # =====================================
+    # INCOME & EXPENSE STATEMENT
+    # =====================================
 
-    # Balance Sheet
-    balance_keywords = [
-        "balance sheet",
-        "assets",
-        "liabilities",
-        "current assets",
-        "current liabilities"
-    ]
-
-    # Profit & Loss
-    pnl_keywords = [
-        "profit",
-        "loss",
-        "revenue",
-        "sales",
-        "income",
-        "expenses"
-    ]
-
-    # Trial Balance
-    tb_keywords = [
-        "trial balance",
-        "debit",
-        "credit"
-    ]
-
-    if any(
-        keyword in text
-        for keyword in balance_keywords
+    if (
+        "income" in text and
+        "expenses" in text
     ):
+
+        return "income_expense_statement"
+
+    # =====================================
+    # TRIAL BALANCE
+    # =====================================
+
+    elif (
+        "opening balance" in text or
+        "closing balance" in text or
+        (
+            "debit" in text and
+            "credit" in text
+        )
+    ):
+
+        return "trial_balance"
+
+    # =====================================
+    # BALANCE SHEET
+    # =====================================
+
+    elif (
+        "assets" in text and
+        "liabilities" in text
+    ):
+
         return "balance_sheet"
 
-    elif any(
-        keyword in text
-        for keyword in pnl_keywords
-    ):
-        return "profit_loss"
+    # =====================================
+    # PROFIT & LOSS
+    # =====================================
 
-    elif any(
-        keyword in text
-        for keyword in tb_keywords
+    elif (
+        "profit" in text or
+        "loss" in text or
+        "revenue" in text
     ):
-        return "trial_balance"
+
+        return "profit_and_loss"
 
     return "unknown"
