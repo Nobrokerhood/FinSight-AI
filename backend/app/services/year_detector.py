@@ -1,41 +1,22 @@
 import re
 
+
 def detect_year_columns(cleaned_data):
 
     detected_years = {}
 
-    for row in cleaned_data[:20]:
+    if not cleaned_data:
+        return detected_years
 
-        values = list(row.values())
+    first_row = cleaned_data[0]
 
-        row_text = " ".join(
-            [str(v) for v in values]
-        )
+    for column in first_row.keys():
 
-        # Find years
-        years = re.findall(r'20\d{2}', row_text)
+        col = str(column)
 
-        if len(years) >= 2:
+        year_match = re.search(r'20\d{2}', col)
 
-            keys = list(row.keys())
-
-            if len(keys) >= 3:
-
-                detected_years[keys[1]] = years[0]
-                detected_years[keys[2]] = years[1]
-
-                return detected_years
-
-        # Detect financial periods
-        elif "2024" in row_text and "2025" in row_text:
-
-            keys = list(row.keys())
-
-            if len(keys) >= 3:
-
-                detected_years[keys[1]] = "2024"
-                detected_years[keys[2]] = "2025"
-
-                return detected_years
+        if year_match:
+            detected_years[column] = year_match.group()
 
     return detected_years

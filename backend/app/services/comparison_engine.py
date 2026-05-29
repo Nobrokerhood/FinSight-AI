@@ -26,7 +26,21 @@ def compare_financial_data(mapped_data, year_mapping):
     year_columns = list(year_mapping.keys())
 
     if len(year_columns) < 2:
-        return comparison_results
+        for section, rows in mapped_data.items():
+            for row in rows:
+                try:
+                    account_name = list(row.values())[0]
+                    value = list(row.values())[-1]
+                    comparison_results.append({
+                        "section": section,
+                        "account": account_name,
+                        "year1_value": value,
+                        "year2_value": value,
+                        "growth_percent": 0
+                    })
+                except:
+                    pass
+            return comparison_results        
 
     year1_col = year_columns[0]
     year2_col = year_columns[1]
