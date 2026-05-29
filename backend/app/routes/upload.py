@@ -2,8 +2,6 @@ from fastapi import APIRouter, UploadFile, File, Form
 import os
 import shutil
 
-from sqlalchemy import values
-
 from app.services.excel_parser import parse_excel
 from app.services.statement_classifier import classify_statement
 from app.services.financial_cleaner import clean_financial_data
