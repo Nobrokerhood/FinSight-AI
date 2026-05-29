@@ -2,6 +2,8 @@ from fastapi import APIRouter, UploadFile, File, Form
 import os
 import shutil
 
+from sqlalchemy import values
+
 from app.services.excel_parser import parse_excel
 from app.services.statement_classifier import classify_statement
 from app.services.financial_cleaner import clean_financial_data
@@ -97,6 +99,28 @@ async def upload_file(file: UploadFile = File(...),statement_type: str = Form(No
                 year_mapping
             )
 
+            if statement_type in ["income_expense_statement", "income_expense"]:
+                comparison_results = []
+                for section, rows in mapped_data.items():
+                    for row in rows:
+                        try:
+                            value = list(row.values())
+                            comparison_results.append({
+                                "section": section,
+                                "account": str(values[0]),
+                                "value": str(values[-1])
+                            })
+                        except Exception:
+                            pass
+                    else:
+                        comparison_results = compare_financial_data(
+                            mapped_data,
+                            year_mapping
+                        )
+                    print("Statement Type =", statement_type)
+                    print("Year Mapping =", year_mapping)
+                    print("Comparison Results =", len(comparison_results))        
+
             # =========================
             # FINAL RESPONSE
             # =========================
@@ -120,7 +144,7 @@ async def upload_file(file: UploadFile = File(...),statement_type: str = Form(No
             # INCOME & EXPENSE ANALYSIS
             # =====================================
 
-            if statement_type == "income_expense_statement":
+            if statement_type in ["income_expense_statement", "income_expense"]:
 
                 income_expense_summary = (
                     analyze_income_expense(
