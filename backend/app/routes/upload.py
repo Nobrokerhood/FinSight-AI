@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Form
 import os
 import shutil
 
@@ -21,7 +21,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...),statement_type: str = Form(None)):
 
     # =========================
     # SAVE FILE
@@ -65,11 +65,16 @@ async def upload_file(file: UploadFile = File(...)):
             # =========================
             # DETECT STATEMENT TYPE
             # =========================
-            statement_type = classify_statement(
-                excel_data["columns"],
-                cleaned_data
-            )
-
+        
+            if statement_type and statement_type.strip():
+                statement_type = (statement_type.lower()
+                                  .replace(" ", "_"))
+            else:
+                statement_type = classify_statement(
+                    excel_data["columns"],
+                    cleaned_data
+                )
+            print("Final Statement Type:", statement_type)
             # =========================
             # DETECT YEAR COLUMNS
             # =========================
