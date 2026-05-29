@@ -13,17 +13,19 @@ model = genai.GenerativeModel(
     "gemini-1.5-flash"
 )
 
-
 # =====================================
 # GENERATE AI INSIGHTS
 # =====================================
 
 def generate_financial_insights(
-    statement_type,
-    comparison_results
+    statement_type="balance_sheet",
+    comparison_results=None
 ):
 
     try:
+
+        if comparison_results is None:
+            comparison_results = []
 
         # =====================================
         # INCOME & EXPENSE STATEMENT
@@ -125,9 +127,7 @@ Financial Data:
         # GEMINI RESPONSE
         # =====================================
 
-        response = model.generate_content(
-            prompt
-        )
+        response = model.generate_content(prompt)
 
         return {
             "status": "success",

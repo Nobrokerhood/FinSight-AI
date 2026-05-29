@@ -125,7 +125,7 @@ async def upload_file(file: UploadFile = File(...)):
                  ] = income_expense_summary
 
             # Generate AI Insights
-            ai_response = generate_financial_insights(
+            ai_response = generate_financial_insights(statement_type,
                 comparison_results
                 )
             response["ai_insights"] = ai_response
