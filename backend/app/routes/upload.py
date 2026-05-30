@@ -107,18 +107,35 @@ async def upload_file(file: UploadFile = File(...),statement_type: str = Form(No
 
                 comparison_results = []
 
-                print("===== DEBUG MAPPED DATA =====")
-
                 for section, rows in mapped_data.items():
-                    
-                    print(f"SECTION: {section}")
-                    print(f"ROWS: {len(rows)}")
 
-                    if rows:
-                        print("FIRST ROW:", rows[0])
+                    if section not in ["revenue", "expenses"]:
+                        continue
 
-                print("============================")
+                for row in rows:
 
+                    account = (
+                        row.get("Account Head")
+                        or row.get("Account Head.1")
+                        or "Unknown"
+                    )
+
+                    amount = (
+                        row.get("Unnamed: 6")
+                        or row.get("Unnamed: 13")
+                        or row.get("Closing Balance")
+                        or 0
+                    )
+
+                    comparison_results.append({
+                        "section": section,
+                        "account": account,
+                        "year1_value": amount,
+                        "year2_value": amount,
+                        "growth_percent": 0
+                    })
+
+                    print("Comparison Results =", len(comparison_results))
             # =========================
             # FINAL RESPONSE
             # =========================
