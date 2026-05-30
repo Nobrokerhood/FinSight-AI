@@ -102,14 +102,15 @@ async def upload_file(file: UploadFile = File(...),statement_type: str = Form(No
                 for section, rows in mapped_data.items():
                     for row in rows:
                         try:
-                            value = list(row.values())
+                            values = list(row.values())
+
                             comparison_results.append({
                                 "section": section,
                                 "account": str(values[0]),
                                 "value": str(values[-1])
                             })
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            print("Error processing row:", e)
                     else:
                         comparison_results = compare_financial_data(
                             mapped_data,
