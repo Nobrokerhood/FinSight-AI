@@ -109,33 +109,58 @@ async def upload_file(file: UploadFile = File(...),statement_type: str = Form(No
 
                 for section, rows in mapped_data.items():
 
+                    # Only Revenue and Expense sections
                     if section not in ["revenue", "expenses"]:
                         continue
 
-                for row in rows:
+                    for row in rows:
 
-                    account = (
-                        row.get("Account Head")
-                        or row.get("Account Head.1")
-                        or "Unknown"
-                    )
+                        account = (
+                            row.get("Account Head")
+                            or row.get("Account Head.1")
+                            or ""
+                        ).strip()
 
-                    amount = (
-                        row.get("Unnamed: 6")
-                        or row.get("Unnamed: 13")
-                        or row.get("Closing Balance")
-                        or 0
-                    )
+                        # Skip blank/header rows
+                        if (
+                            account == ""
+                            or account.lower() == "account head"
+                            or account.lower() == "debit"
+                            or account.lower() == "credit"
+                        ):
+                            continue
 
-                    comparison_results.append({
-                        "section": section,
-                        "account": account,
-                        "year1_value": amount,
-                        "year2_value": amount,
-                        "growth_percent": 0
-                    })
+                        amount = 0
 
-                    print("Comparison Results =", len(comparison_results))
+                        # Find first valid amount column
+                        for col in [
+                            "Unnamed: 6",
+                            "Unnamed: 13",
+                            "Closing Balance",
+                            "Closing Balance.1",
+                            "Unnamed: 4",
+                            "Unnamed: 11"
+                        ]:
+                            val = row.get(col)
+
+                            if val not in ["", "-", None]:
+                                amount = val
+                                break
+
+                        comparison_results.append({
+                            "section": section,
+                            "account": account,
+                            "year1_value": amount,
+                            "year2_value": amount,
+                            "growth_percent": 0
+                        })
+
+                print("Comparison Results =", len(comparison_results))
+
+                if comparison_results:
+                    print("Sample Results:")
+                    for item in comparison_results[:5]:
+                        print(item)
             # =========================
             # FINAL RESPONSE
             # =========================
