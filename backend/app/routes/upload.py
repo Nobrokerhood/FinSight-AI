@@ -88,6 +88,12 @@ async def upload_file(file: UploadFile = File(...),statement_type: str = Form(No
             mapped_data = map_financial_structure(
                 cleaned_data
             )
+            print("\n===== MAPPED DATA =====")
+            for section, rows in mapped_data.items():
+                print(f"{section} -> {len(rows)}")
+                if rows:
+                    print("First Row:", rows[0])
+            print("=======================\n")
 
             # =========================
             # COMPARATIVE ANALYSIS
@@ -98,27 +104,20 @@ async def upload_file(file: UploadFile = File(...),statement_type: str = Form(No
             )
 
             if statement_type in ["income_expense_statement", "income_expense"]:
-                comparison_results = []
-                for section, rows in mapped_data.items():
-                    for row in rows:
-                        try:
-                            values = list(row.values())
 
-                            comparison_results.append({
-                                "section": section,
-                                "account": str(values[0]),
-                                "value": str(values[-1])
-                            })
-                        except Exception as e:
-                            print("Error processing row:", e)
-                    else:
-                        comparison_results = compare_financial_data(
-                            mapped_data,
-                            year_mapping
-                        )
-                    print("Statement Type =", statement_type)
-                    print("Year Mapping =", year_mapping)
-                    print("Comparison Results =", len(comparison_results))        
+                comparison_results = []
+
+                print("===== DEBUG MAPPED DATA =====")
+
+                for section, rows in mapped_data.items():
+                    
+                    print(f"SECTION: {section}")
+                    print(f"ROWS: {len(rows)}")
+
+                    if rows:
+                        print("FIRST ROW:", rows[0])
+
+                print("============================")
 
             # =========================
             # FINAL RESPONSE
