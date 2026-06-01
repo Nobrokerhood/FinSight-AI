@@ -3,6 +3,7 @@ uvicorn
 python-multipart
 pandas
 openpyxl
+xlrd
 pdfplumber
 google-generativeai
 python-dotenv

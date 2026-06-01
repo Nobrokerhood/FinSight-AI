@@ -1,241 +1,125 @@
-from fastapi import APIRouter, UploadFile, File, Form
 import os
 import shutil
+from pathlib import Path
+from uuid import uuid4
 
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+
+from app.services.analyzer import analyze
 from app.services.excel_parser import parse_excel
-from app.services.statement_classifier import classify_statement
-from app.services.financial_cleaner import clean_financial_data
-from app.services.pdf_parser import parse_pdf
-from app.services.financial_mapper import map_financial_structure
-from app.services.year_detector import detect_year_columns
-from app.services.comparison_engine import compare_financial_data
 from app.services.gemini_service import generate_financial_insights
-from app.services.income_expense_analyzer import analyze_income_expense
+from app.services.normalizer import normalize_rows
+from app.services.statement_classifier import classify_statement
+from app.services.statement_mapper import STATEMENT_SECTIONS, map_statement
+
 
 router = APIRouter()
-
-UPLOAD_FOLDER = "uploads"
-
-# Create uploads folder if not exists
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+UPLOAD_FOLDER = Path("uploads")
+UPLOAD_FOLDER.mkdir(exist_ok=True)
+SUPPORTED_FILES = (".xlsx", ".xls", ".csv")
 
 
-@router.post("/upload")
-async def upload_file(file: UploadFile = File(...),statement_type: str = Form(None)):
-
-    # =========================
-    # SAVE FILE
-    # =========================
-    file_path = os.path.join(
-        UPLOAD_FOLDER,
-        file.filename
-    )
-
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    # =========================
-    # BASE RESPONSE
-    # =========================
-    response = {
-        "status": "success",
-        "filename": file.filename,
-        "content_type": file.content_type,
-        "saved_path": file_path
+def _statement_type(value, parsed):
+    normalized = (value or "auto_detect").strip().lower().replace(" ", "_")
+    aliases = {
+        "auto": "auto_detect",
+        "profit_loss": "profit_and_loss",
+        "income_expense_statement": "income_expense",
     }
-
-    # ====================================================
-    # EXCEL / CSV PROCESSING
-    # ====================================================
-    if file.filename.endswith((".xlsx", ".xls", ".csv")):
-
-        # Parse Excel
-        excel_data = parse_excel(file_path)
-
-        # Check parsing status
-        if excel_data["status"] == "success":
-
-            # =========================
-            # CLEAN DATA
-            # =========================
-            cleaned_data = clean_financial_data(
-                excel_data["data"]
-            )
-
-            # =========================
-            # DETECT STATEMENT TYPE
-            # =========================
-        
-            if statement_type and statement_type.strip():
-                statement_type = (statement_type.lower()
-                                  .replace(" ", "_"))
-            else:
-                statement_type = classify_statement(
-                    excel_data["columns"],
-                    cleaned_data
-                )
-            print("Final Statement Type:", statement_type)
-            # =========================
-            # DETECT YEAR COLUMNS
-            # =========================
-            year_mapping = detect_year_columns(
-                cleaned_data
-            )
-
-            # =========================
-            # MAP FINANCIAL STRUCTURE
-            # =========================
-            mapped_data = map_financial_structure(
-                cleaned_data
-            )
-            print("\n===== MAPPED DATA =====")
-            for section, rows in mapped_data.items():
-                print(f"{section} -> {len(rows)}")
-                if rows:
-                    print("First Row:", rows[0])
-            print("=======================\n")
-
-            # =========================
-            # COMPARATIVE ANALYSIS
-            # =========================
-            comparison_results = compare_financial_data(
-                mapped_data,
-                year_mapping
-            )
-
-            if statement_type in ["income_expense_statement", "income_expense"]:
-
-                comparison_results = []
-
-                for section, rows in mapped_data.items():
-
-                    # Only Revenue and Expense sections
-                    if section not in ["revenue", "expenses"]:
-                        continue
-
-                    for row in rows:
-
-                        account = (
-                            row.get("Account Head")
-                            or row.get("Account Head.1")
-                            or ""
-                        ).strip()
-
-                        # Skip blank/header rows
-                        if (
-                            account == ""
-                            or account.lower() == "account head"
-                            or account.lower() == "debit"
-                            or account.lower() == "credit"
-                        ):
-                            continue
-
-                        amount = 0
-
-                        # Find first valid amount column
-                        for col in [
-                            "Unnamed: 6",
-                            "Unnamed: 13",
-                            "Closing Balance",
-                            "Closing Balance.1",
-                            "Unnamed: 4",
-                            "Unnamed: 11"
-                        ]:
-                            val = row.get(col)
-
-                            if val not in ["", "-", None]:
-                                amount = val
-                                break
-
-                        comparison_results.append({
-                            "section": section,
-                            "account": account,
-                            "year1_value": amount,
-                            "year2_value": amount,
-                            "growth_percent": 0
-                        })
-
-                print("Comparison Results =", len(comparison_results))
-
-                if comparison_results:
-                    print("Sample Results:")
-                    for item in comparison_results[:5]:
-                        print(item)
-            # =========================
-            # FINAL RESPONSE
-            # =========================
-            response["summary"] = {
-                "statement_type": statement_type,
-                "year_mapping": year_mapping,
-                "total_sections": {
-                    "assets": len(mapped_data["assets"]),
-                    "liabilities": len(mapped_data["liabilities"]),
-                    "equity": len(mapped_data["equity"]),
-                    "revenue": len(mapped_data["revenue"]),
-                    "expenses": len(mapped_data["expenses"]),
-                    "unknown": len(mapped_data["unknown"])
-                }
-            }
-
-            response["comparison_results"] = (
-                comparison_results[:10]
-            )
-            # =====================================
-            # INCOME & EXPENSE ANALYSIS
-            # =====================================
-
-            if statement_type in ["income_expense_statement", "income_expense"]:
-
-                income_expense_summary = (
-                    analyze_income_expense(
-                    comparison_results))
-                response[
-                    "income_expense_summary"
-                 ] = income_expense_summary
-
-            # Generate AI Insights
-            ai_response = generate_financial_insights(statement_type,
-                comparison_results
-                )
-            response["ai_insights"] = ai_response
-
-        else:
-
-            response["error"] = (
-                "Excel parsing failed"
-            )
-
-    # ====================================================
-    # PDF PROCESSING
-    # ====================================================
-    elif file.filename.endswith(".pdf"):
-
-        pdf_data = parse_pdf(file_path)
-
-        response["pdf_preview"] = pdf_data
-
-    # ====================================================
-    # IMAGE PROCESSING
-    # ====================================================
-    elif file.filename.endswith(
-        (".png", ".jpg", ".jpeg")
-    ):
-
-        response["image_status"] = "success"
-
-        response["message"] = (
-            "OCR engine will be added next"
+    normalized = aliases.get(normalized, normalized)
+    if normalized == "auto_detect":
+        normalized = classify_statement(
+            parsed.get("columns", []),
+            parsed["data"],
+            parsed.get("report_text", ""),
         )
+        normalized = aliases.get(normalized, normalized)
+    if normalized not in STATEMENT_SECTIONS:
+        raise HTTPException(status_code=400, detail="Could not determine a supported statement type")
+    return normalized
 
-    # ====================================================
-    # UNSUPPORTED FILES
-    # ====================================================
-    else:
 
-        response["status"] = "error"
+async def _save(upload):
+    suffix = Path(upload.filename or "").suffix.lower()
+    if suffix not in SUPPORTED_FILES:
+        raise HTTPException(status_code=400, detail="Only Excel and CSV files are supported")
+    path = UPLOAD_FOLDER / f"{uuid4().hex}{suffix}"
+    with path.open("wb") as buffer:
+        shutil.copyfileobj(upload.file, buffer)
+    return path
 
-        response["message"] = (
-            "Unsupported file type"
-        )
 
-    return response
+async def _parse_upload(upload):
+    path = await _save(upload)
+    try:
+        parsed = parse_excel(path)
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    if parsed["status"] != "success":
+        raise HTTPException(status_code=400, detail=f"Excel parsing failed: {parsed.get('message', '')}")
+    return parsed
+
+
+@router.post("/analyze")
+@router.post("/upload")
+async def analyze_statement(
+    current_file: UploadFile = File(None),
+    previous_file: UploadFile = File(None),
+    statement_type: str = Form("auto_detect"),
+    compare_mode: str = Form("no"),
+    from_date: str = Form(""),
+    to_date: str = Form(""),
+    compare_from_date: str = Form(""),
+    compare_to_date: str = Form(""),
+    # Legacy GitHub Pages frontend compatibility during deployment rollout.
+    file: UploadFile = File(None),
+    compare_report: str = Form(""),
+):
+    current_file = current_file or file
+    if not current_file:
+        raise HTTPException(status_code=400, detail="current_file is required")
+
+    current_parsed = await _parse_upload(current_file)
+    resolved_type = _statement_type(statement_type, current_parsed)
+    current_rows = normalize_rows(current_parsed["data"])
+    current_mapped = map_statement(current_rows, resolved_type)
+
+    should_compare = (compare_mode or compare_report).strip().lower() == "yes"
+    previous_rows = []
+    previous_mapped = None
+    if should_compare:
+        if not previous_file:
+            raise HTTPException(status_code=400, detail="previous_file is required when compare_mode is yes")
+        previous_parsed = await _parse_upload(previous_file)
+        previous_rows = normalize_rows(previous_parsed["data"])
+        previous_mapped = map_statement(previous_rows, resolved_type)
+
+    results = analyze(current_mapped, previous_mapped)
+    mapped_section_count = sum(bool(rows) for rows in current_mapped.values())
+    print("statement_type:", resolved_type)
+    print("current rows count:", len(current_rows))
+    print("previous rows count:", len(previous_rows))
+    print("mapped sections count:", mapped_section_count)
+    print("comparison count:", len(results["comparison_results"]))
+    print("AI input count:", len(results["ai_input"]["financial_rows"]))
+
+    return {
+        "status": "success",
+        "statement_type": resolved_type,
+        "mode": "comparison" if should_compare else "single_period",
+        "period": {"from_date": from_date, "to_date": to_date},
+        "comparison_period": (
+            {"from_date": compare_from_date, "to_date": compare_to_date}
+            if should_compare
+            else None
+        ),
+        "summary": results["summary"],
+        "top_accounts": results["top_accounts"],
+        "top_increases": results["top_increases"],
+        "top_decreases": results["top_decreases"],
+        "comparison_results": results["comparison_results"],
+        "ai_insights": generate_financial_insights(resolved_type, results["ai_input"]),
+    }

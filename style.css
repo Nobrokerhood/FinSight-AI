@@ -130,6 +130,11 @@ body {
     font-size: 15px;
 }
 
+.comparison-field {
+
+    display: none;
+}
+
 .loader {
 
     margin-top: 25px;
@@ -177,9 +182,16 @@ body {
 
 .summary-item p {
 
-    font-size: 32px;
+    font-size: 24px;
 
     font-weight: bold;
+}
+
+#aiInsights ul {
+
+    margin: 0;
+
+    padding-left: 22px;
 }
 
 table {
