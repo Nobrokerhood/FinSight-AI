@@ -5,7 +5,7 @@ from fastapi import Request, HTTPException, status
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
-JWT_SECRET = os.getenv("JWT_SECRET", "8d2a569eb9bf2dea665868fb2115072a7176e8b37d279457718d0a1bc0853d32")
+JWT_SECRET = os.environ["JWT_SECRET"]
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 JWT_ALGORITHM = "HS256"
 SESSION_TIMEOUT_HOURS = 8
