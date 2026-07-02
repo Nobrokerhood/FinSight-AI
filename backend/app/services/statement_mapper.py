@@ -31,6 +31,11 @@ def _allowed_section(section, statement_type):
         return "revenue"
     if statement_type == "income_expense" and section in ("revenue", "direct_expenses", "indirect_expenses"):
         return "income" if section == "revenue" else "expenses"
+    if statement_type == "trial_balance":
+        if section in ("direct_expenses", "indirect_expenses"):
+            return "expenses"
+        if section == "revenue":
+            return "income"
     return section
 
 

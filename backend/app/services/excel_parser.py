@@ -88,7 +88,15 @@ def _column_role(rows, header_index, column):
     labels = []
     for index in range(max(0, header_index - 1), min(len(rows), header_index + 3)):
         if column < len(rows[index]):
-            labels.append(_lower(rows[index][column]))
+            val = rows[index][column]
+            # Propagate merged group headers leftwards if current cell is empty/NaN
+            if (val is None or pd.isna(val) or str(val).strip() == "") and column > 0:
+                for left_col in range(column - 1, -1, -1):
+                    left_val = rows[index][left_col]
+                    if left_val is not None and not pd.isna(left_val) and str(left_val).strip() != "":
+                        val = left_val
+                        break
+            labels.append(_lower(val))
     text = " ".join(labels)
     if "closing" in text and "debit" in text:
         return "closing_debit"
@@ -101,6 +109,7 @@ def _column_role(rows, header_index, column):
     if "amount" in text or "closing balance" in text:
         return "amount"
     return ""
+
 
 
 def _section_hint(rows, header_index, start, end):
@@ -161,10 +170,16 @@ def _parse_sectioned(rows):
         lowered = account.lower()
         if lowered == "assets":
             section_hint = "assets"
-            continue
+            if len(row) > 1 and any(x is not None and not pd.isna(x) and str(x).strip() for x in row[1:]):
+                pass
+            else:
+                continue
         if lowered == "liabilities":
             section_hint = "liabilities"
-            continue
+            if len(row) > 1 and any(x is not None and not pd.isna(x) and str(x).strip() for x in row[1:]):
+                pass
+            else:
+                continue
         if lowered in ("balance sheet", "profit & loss", "profit and loss"):
             continue
         if lowered == "total":

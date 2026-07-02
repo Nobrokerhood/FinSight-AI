@@ -16,6 +16,21 @@
         rel="stylesheet"
         href="style.css"
     />
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <script>
+        // Set theme early to prevent flicker
+        (function() {
+            const savedTheme = localStorage.getItem("theme");
+            if (savedTheme === "dark" || savedTheme === "light") {
+                document.documentElement.setAttribute("data-theme", savedTheme);
+            } else {
+                const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+                document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+            }
+        })();
+    </script>
 
 </head>
 
@@ -35,6 +50,21 @@
                 AI Financial Analysis Platform
             </p>
 
+            <div class="header-actions">
+                <button id="themeToggle" class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Theme">
+                    🌙 Dark Mode
+                </button>
+                
+                <div id="userProfile" class="user-profile" style="display: none;">
+                    <img id="userAvatar" class="user-avatar" src="" alt="User Avatar" />
+                    <div class="user-details">
+                        <span id="profileName" class="user-name">-</span>
+                        <span id="profileEmail" class="user-email">-</span>
+                    </div>
+                    <button type="button" class="logout-btn" onclick="logoutUser()">Logout</button>
+                </div>
+            </div>
+
         </div>
 
         <!-- ========================= -->
@@ -45,9 +75,17 @@
 
             <div class="upload-section">
 
-                <button onclick="uploadFile()">
+                <button type="button" onclick="uploadFile()">
                     Analyze Financial Report
                 </button>
+
+                <div class="export-dropdown" id="exportContainer" style="display: none;">
+                    <button type="button" class="export-btn" onclick="toggleExportMenu()">Export Report ▾</button>
+                    <div class="export-menu" id="exportMenu">
+                        <button type="button" onclick="exportReport('pdf')">Export as PDF</button>
+                        <button type="button" onclick="exportReport('xlsx')">Export as Excel</button>
+                    </div>
+                </div>
 
             </div>
 
@@ -96,6 +134,7 @@
                     </label>
 
                     <input type="file" id="currentFile" accept=".xlsx,.xls,.csv" />
+                    <div class="file-name" id="currentFileName">No file chosen</div>
 
                 </div>
 
@@ -152,6 +191,7 @@
                     </label>
 
                     <input type="file" id="previousFile" accept=".xlsx,.xls,.csv" />
+                    <div class="file-name" id="previousFileName">No file chosen</div>
 
                 </div>
 
@@ -197,6 +237,24 @@
         </div>
 
         <!-- ========================= -->
+        <!-- AI INSIGHTS -->
+        <!-- ========================= -->
+
+        <div class="card">
+
+            <h2>
+                AI Financial Insights
+            </h2>
+
+            <div id="aiInsights">
+
+                Upload a financial report to generate AI insights.
+
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
         <!-- SUMMARY -->
         <!-- ========================= -->
 
@@ -216,6 +274,91 @@
         </div>
 
         <!-- ========================= -->
+        <!-- ANALYTICS -->
+        <!-- ========================= -->
+
+        <div class="card" id="analyticsCard" style="display: none;">
+
+            <h2>
+                Financial Analytics
+            </h2>
+
+            <div class="analytics-container">
+                <!-- Liquidity Section -->
+                <div class="analytics-section">
+                    <h3>Liquidity</h3>
+                    <div class="analytics-grid">
+                        <div class="analytics-item">
+                            <h4>Cash & Bank</h4>
+                            <p id="anCashBank">-</p>
+                        </div>
+                        <div class="analytics-item">
+                            <h4>Receivables</h4>
+                            <p id="anReceivables">-</p>
+                        </div>
+                        <div class="analytics-item">
+                            <h4>Payables</h4>
+                            <p id="anPayables">-</p>
+                        </div>
+                        <div class="analytics-item">
+                            <h4>Current Assets</h4>
+                            <p id="anCurrentAssets">-</p>
+                        </div>
+                        <div class="analytics-item">
+                            <h4>Current Liabilities</h4>
+                            <p id="anCurrentLiabilities">-</p>
+                        </div>
+                        <div class="analytics-item">
+                            <h4>Working Capital</h4>
+                            <p id="anWorkingCapital">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Asset Structure Section -->
+                <div class="analytics-section">
+                    <h3>Assets & Liabilities</h3>
+                    <div class="analytics-grid">
+                        <div class="analytics-item">
+                            <h4>Fixed Assets</h4>
+                            <p id="anFixedAssets">-</p>
+                        </div>
+                        <div class="analytics-item">
+                            <h4>Investments</h4>
+                            <p id="anInvestments">-</p>
+                        </div>
+                    </div>
+                    <div class="ranking-split-grid">
+                        <div class="ranking-box">
+                            <h4>Largest Assets</h4>
+                            <ul id="anLargestAssets"></ul>
+                        </div>
+                        <div class="ranking-box">
+                            <h4>Largest Liabilities</h4>
+                            <ul id="anLargestLiabilities"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Income & Expenses Section -->
+                <div class="analytics-section">
+                    <h3>Income & Expenses</h3>
+                    <div class="ranking-split-grid">
+                        <div class="ranking-box">
+                            <h4>Largest Income Accounts</h4>
+                            <ul id="anTopIncome"></ul>
+                        </div>
+                        <div class="ranking-box">
+                            <h4>Largest Expense Accounts</h4>
+                            <ul id="anTopExpenses"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
         <!-- TABLE -->
         <!-- ========================= -->
 
@@ -224,6 +367,11 @@
             <h2>
                 Normalized Financial Data
             </h2>
+
+            <div class="search-container" id="searchContainer" style="display: none;">
+                <input type="text" id="searchInput" placeholder="Search by account or section..." onkeyup="filterTable()" />
+                <button id="clearSearchBtn" onclick="clearSearch()">Clear</button>
+            </div>
 
             <table id="comparisonTable">
 
@@ -250,27 +398,42 @@
             </table>
 
         </div>
-
-        <!-- ========================= -->
-        <!-- AI INSIGHTS -->
-        <!-- ========================= -->
-
-        <div class="card">
-
-            <h2>
-                AI Financial Insights
-            </h2>
-
-            <div id="aiInsights">
-
-                Upload a financial report to generate AI insights.
-
+    <!-- ========================= -->
+    <!-- LOGIN OVERLAY -->
+    <!-- ========================= -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-box">
+            <div class="login-header">
+                <div class="login-logo">
+                    <span class="logo-icon">📊</span>
+                    <span class="logo-text">FinSight AI</span>
+                </div>
+                <p class="login-subtitle">AI-Powered Financial Insights Platform</p>
             </div>
+            
+            <div class="login-body">
+                <p class="login-instructions">
+                    Please sign in with your NoBroker account to access the dashboard.
+                </p>
+                
+                <div class="google-btn-container">
+                    <div id="googleSignInButton"></div>
+                </div>
 
+                <div id="loginError" class="login-error" style="display: none;">
+                    Access Denied.<br/>
+                    Only NoBroker employees can access FinSight AI.
+                </div>
+            </div>
+            
+            <div class="login-footer">
+                <p>&copy; 2026 NoBroker Technologies Solutions Pvt. Ltd.</p>
+            </div>
         </div>
-
     </div>
-
+    <script src="js/xlsx.full.min.js"></script>
+    <script src="js/jspdf.umd.min.js"></script>
+    <script src="js/jspdf.plugin.autotable.min.js"></script>
     <script src="script.js"></script>
 
 </body>

@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Depends, Request
 
 from app.services.analyzer import analyze
 from app.services.excel_parser import parse_excel
@@ -11,6 +11,8 @@ from app.services.gemini_service import generate_financial_insights
 from app.services.normalizer import normalize_rows
 from app.services.statement_classifier import classify_statement
 from app.services.statement_mapper import STATEMENT_SECTIONS, map_statement
+from app.auth.auth import get_current_user, parse_user_agent
+from app.services.sheets_logger import log_audit_event
 
 
 router = APIRouter()
@@ -66,6 +68,7 @@ async def _parse_upload(upload):
 @router.post("/analyze")
 @router.post("/upload")
 async def analyze_statement(
+    request: Request,
     current_file: UploadFile = File(None),
     previous_file: UploadFile = File(None),
     statement_type: str = Form("auto_detect"),
@@ -77,6 +80,7 @@ async def analyze_statement(
     # Legacy GitHub Pages frontend compatibility during deployment rollout.
     file: UploadFile = File(None),
     compare_report: str = Form(""),
+    current_user: dict = Depends(get_current_user),
 ):
     current_file = current_file or file
     if not current_file:
@@ -97,7 +101,7 @@ async def analyze_statement(
         previous_rows = normalize_rows(previous_parsed["data"])
         previous_mapped = map_statement(previous_rows, resolved_type)
 
-    results = analyze(current_mapped, previous_mapped)
+    results = analyze(current_mapped, previous_mapped, current_rows, resolved_type)
     mapped_section_count = sum(bool(rows) for rows in current_mapped.values())
     print("statement_type:", resolved_type)
     print("current rows count:", len(current_rows))
@@ -105,6 +109,68 @@ async def analyze_statement(
     print("mapped sections count:", mapped_section_count)
     print("comparison count:", len(results["comparison_results"]))
     print("AI input count:", len(results["ai_input"]["financial_rows"]))
+
+    # Parse headers for logging context
+    ip_addr = request.client.host
+    ua = request.headers.get("user-agent", "")
+    browser, browser_version, os_name, device = parse_user_agent(ua)
+    session_id = current_user.get("session_id")
+    google_user_id = current_user.get("google_user_id")
+    login_timestamp = current_user.get("iat")
+
+    # Asynchronously log FILE_UPLOAD
+    log_audit_event(
+        email=current_user.get("email"),
+        name=current_user.get("name"),
+        google_user_id=google_user_id,
+        action="FILE_UPLOAD",
+        statement_type=resolved_type,
+        filename=current_file.filename or "unknown",
+        browser=browser,
+        browser_version=browser_version,
+        os_name=os_name,
+        device=device,
+        ip_address=ip_addr,
+        session_id=session_id,
+        login_timestamp=login_timestamp,
+        status="SUCCESS"
+    )
+
+    if should_compare and previous_file:
+        log_audit_event(
+            email=current_user.get("email"),
+            name=current_user.get("name"),
+            google_user_id=google_user_id,
+            action="FILE_UPLOAD",
+            statement_type=resolved_type,
+            filename=previous_file.filename or "unknown",
+            browser=browser,
+            browser_version=browser_version,
+            os_name=os_name,
+            device=device,
+            ip_address=ip_addr,
+            session_id=session_id,
+            login_timestamp=login_timestamp,
+            status="SUCCESS"
+        )
+
+    # Asynchronously log REPORT_ANALYSIS
+    log_audit_event(
+        email=current_user.get("email"),
+        name=current_user.get("name"),
+        google_user_id=google_user_id,
+        action="REPORT_ANALYSIS",
+        statement_type=resolved_type,
+        filename=current_file.filename or "unknown",
+        browser=browser,
+        browser_version=browser_version,
+        os_name=os_name,
+        device=device,
+        ip_address=ip_addr,
+        session_id=session_id,
+        login_timestamp=login_timestamp,
+        status="SUCCESS"
+    )
 
     return {
         "status": "success",
@@ -117,6 +183,8 @@ async def analyze_statement(
             else None
         ),
         "summary": results["summary"],
+        "analytics": results["analytics"],
+        "warnings": results["warnings"],
         "top_accounts": results["top_accounts"],
         "top_increases": results["top_increases"],
         "top_decreases": results["top_decreases"],

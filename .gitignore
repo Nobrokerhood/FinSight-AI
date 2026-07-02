@@ -1,4 +1,13 @@
 venv/
+.venv/
 __pycache__/
+.pytest_cache/
 .env
 *.pyc
+*.pyo
+*.log
+*.json
+credentials.json
+service-account.json
+uploads/*
+backend/uploads/*
