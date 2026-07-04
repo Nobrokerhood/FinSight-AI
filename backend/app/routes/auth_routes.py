@@ -105,7 +105,7 @@ async def login(payload: LoginRequest, request: Request, response: Response):
         key="session_token",
         value=jwt_token,
         httponly=True,
-        samesite="lax",
+        samesite="none" if is_secure else "lax",
         secure=is_secure,
         max_age=8 * 3600
     )
@@ -154,7 +154,12 @@ async def logout(request: Request, response: Response, current_user: dict = Depe
         status="SUCCESS"
     )
     
-    response.delete_cookie("session_token")
+    is_secure = request.url.scheme == "https"
+    response.delete_cookie(
+        "session_token",
+        samesite="none" if is_secure else "lax",
+        secure=is_secure
+    )
     return {"status": "success"}
  
 @router.get("/session")

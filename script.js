@@ -1,4 +1,7 @@
-const API_URL = "/analyze";
+const BACKEND_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? ""
+    : "https://finsight-ai-6l56.onrender.com";
+const API_URL = `${BACKEND_ORIGIN}/analyze`;
 let currentData = null;
 let currentUser = null;
 
@@ -59,7 +62,7 @@ async function handleMockUpload() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("mockUpload") === "true") {
         try {
-            const response = await fetch("/backend/uploads/trial-balancetrial_balance_30-05-2026-121835.xlsx");
+            const response = await fetch(`${BACKEND_ORIGIN}/backend/uploads/trial-balancetrial_balance_30-05-2026-121835.xlsx`);
             if (!response.ok) throw new Error("Failed to fetch test file");
             const blob = await response.blob();
             const file = new File([blob], "trial-balancetrial_balance_30-05-2026-121835.xlsx", {
@@ -80,7 +83,7 @@ async function handleMockUpload() {
 
 async function checkSession() {
     try {
-        const res = await fetch("/api/auth/session");
+        const res = await fetch(`${BACKEND_ORIGIN}/api/auth/session`, { credentials: "include" });
         if (res.ok) {
             const data = await res.json();
             currentUser = data;
@@ -128,7 +131,7 @@ async function initGoogleSignIn() {
         await waitForGoogleAPI();
         console.log("Google API Loaded");
         
-        const res = await fetch("/api/auth/config");
+        const res = await fetch(`${BACKEND_ORIGIN}/api/auth/config`, { credentials: "include" });
         const config = await res.json();
         const client_id = config.google_client_id;
         
@@ -173,8 +176,9 @@ async function handleCredentialResponse(response) {
     if (errorEl) errorEl.style.display = "none";
     
     try {
-        const loginRes = await fetch("/api/auth/login", {
+        const loginRes = await fetch(`${BACKEND_ORIGIN}/api/auth/login`, {
             method: "POST",
+            credentials: "include",
             headers: {
                 "Content-Type": "application/json"
             },
@@ -202,7 +206,7 @@ async function logoutUser() {
     const previousEmail = currentUser ? currentUser.email : null;
     
     try {
-        await fetch("/api/auth/logout", { method: "POST" });
+        await fetch(`${BACKEND_ORIGIN}/api/auth/logout`, { method: "POST", credentials: "include" });
     } catch (err) {
         console.error("Logout request failed:", err);
     }
@@ -333,7 +337,7 @@ async function uploadFile() {
     formData.append("compare_to_date", document.getElementById("compareToDate").value);
 
     try {
-        const response = await fetch(API_URL, { method: "POST", body: formData });
+        const response = await fetch(API_URL, { method: "POST", credentials: "include", body: formData });
         const data = await response.json();
         if (response.status === 401) {
             currentUser = null;
@@ -517,8 +521,9 @@ function exportPDF(data) {
     
     // Log PDF export to backend
     const currentFileName = document.getElementById("currentFileName") ? document.getElementById("currentFileName").textContent : "unknown";
-    fetch("/api/log/pdf-export", {
+    fetch(`${BACKEND_ORIGIN}/api/log/pdf-export`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             statement_type: data.statement_type || "unknown",
@@ -647,8 +652,9 @@ function exportPDF(data) {
 function exportExcel(data) {
     // Log Excel export to backend
     const currentFileName = document.getElementById("currentFileName") ? document.getElementById("currentFileName").textContent : "unknown";
-    fetch("/api/log/excel-export", {
+    fetch(`${BACKEND_ORIGIN}/api/log/excel-export`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             statement_type: data.statement_type || "unknown",
