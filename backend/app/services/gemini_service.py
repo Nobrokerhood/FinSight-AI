@@ -41,8 +41,8 @@ def _fallback_insights(statement_type, data):
     top_expense = top_expense_list[0] if top_expense_list else None
 
     return [
-        f"**Executive Summary**: This is a {statement_type.replace('_', ' ')} statement. Total assets are {fmt(summary.get('total_assets'))} and total equity (owner's share) is {fmt(summary.get('equity'))}.",
-        f"**Liquidity Analysis**: Cash & bank balance is {fmt(cb)}. Money owed to the business (receivables) is {fmt(rec)}, and money the business owes (payables) is {fmt(pay)}.",
+        f"**Executive Summary**: This is a {statement_type.replace('_', ' ')} statement. Total assets are {fmt(summary.get('total_assets'))} and total equity (society's share) is {fmt(summary.get('equity'))}.",
+        f"**Liquidity Analysis**: Cash & bank balance is {fmt(cb)}. Money owed to the society (receivables) is {fmt(rec)}, and money the society owes (payables) is {fmt(pay)}.",
         f"**Asset Analysis**: Fixed assets (like property, equipment) are worth {fmt(fa)}, and long-term investments are worth {fmt(inv)}.",
         f"**Income Analysis**: Total income earned in this period is {fmt(inc_val)}.",
         f"**Expense Analysis**: Total expenses spent in this period are {fmt(exp_val)}.",
@@ -55,7 +55,7 @@ def _fallback_insights(statement_type, data):
             if top_expense else "**Highest Expense**: No expense accounts found."
         ),
         f"**Risk Observations**: Net working capital (short-term funds available) is {fmt(wc)}. This should be watched closely to make sure day-to-day bills can be paid on time.",
-        f"**Business Recommendations**: Keep an eye on payables of {fmt(pay)} and try to collect receivables of {fmt(rec)} faster to keep enough cash on hand."
+        f"**Business Recommendations**: Keep an eye on payables of {fmt(pay)} and try to collect receivables of {fmt(rec)} faster to keep enough cash on hand for the society."
     ]
 
 
@@ -86,10 +86,12 @@ def generate_financial_insights(statement_type, financial_data):
     }
 
     prompt = f"""
-You are an accountant explaining this {statement_type.replace('_', ' ')} financial statement to a
-small business owner who has no accounting background. Write in plain, everyday language —
-avoid technical jargon, and where a technical term is unavoidable, briefly explain it in
-simple words in the same sentence.
+You are an accountant explaining this {statement_type.replace('_', ' ')} financial statement to the
+committee members of a housing society who have no accounting background. This statement belongs
+to the society, not to a private business — always refer to it as "the society" or "the society's"
+(never "your business" or "the company"). Write in plain, everyday language — avoid technical
+jargon, and where a technical term is unavoidable, briefly explain it in simple words in the same
+sentence.
 
 Provide exactly one bullet point for each of the following sections, in order:
 • **Executive Summary**
