@@ -128,9 +128,6 @@ async function initGoogleSignIn() {
     };
 
     try {
-        await waitForGoogleAPI();
-        console.log("Google API Loaded");
-        
         const res = await fetch(`${BACKEND_ORIGIN}/api/auth/config`, { credentials: "include" });
         const config = await res.json();
         const client_id = config.google_client_id;
@@ -145,6 +142,9 @@ async function initGoogleSignIn() {
             return;
         }
         console.log("Client ID Loaded");
+
+        await waitForGoogleAPI();
+        console.log("Google API Loaded");
         
         console.log("Authentication Callback Registered");
         google.accounts.id.initialize({
@@ -275,6 +275,14 @@ function updateUserUI() {
 document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     initFileListeners();
+    const calculationClose = document.getElementById("calculationClose");
+    const calculationModal = document.getElementById("calculationModal");
+    if (calculationClose) calculationClose.addEventListener("click", closeCalculationModal);
+    if (calculationModal) {
+        calculationModal.addEventListener("click", event => {
+            if (event.target === calculationModal) closeCalculationModal();
+        });
+    }
     checkSession();
 });
 
@@ -298,6 +306,18 @@ function formatRawNumber(value) {
     if (value === null || value === undefined || value === "") return "";
     const number = Number(value);
     return Number.isFinite(number) ? number : value;
+}
+
+function formatBusinessChange(metric) {
+    if (!metric || metric.previous_value === null || metric.previous_value === undefined) return "-";
+    const amount = Number(metric.display_change_amount ?? metric.variance_amount ?? 0);
+    if (amount === 0) return "No change";
+    const label = metric.display_change_label || (amount > 0 ? "Increased" : "Decreased");
+    const percentage = metric.display_change_percentage ?? metric.variance_percentage;
+    const percentageText = percentage === null || percentage === undefined
+        ? ""
+        : ` (${formatAmount(Math.abs(percentage))}%)`;
+    return `${label} by ${formatAmount(Math.abs(amount))}${percentageText}`;
 }
 
 function escapeHtml(value) {
@@ -369,19 +389,31 @@ function renderAnalytics(analytics) {
     }
     card.style.display = "block";
 
-    const getVal = (obj) => {
+    const getMetricHtml = (obj) => {
         if (!obj || obj.value === null || obj.value === undefined) return "Not Available";
-        return formatAmount(obj.value);
+        const value = escapeHtml(formatAmount(obj.value));
+        if (obj.previous_value === null || obj.previous_value === undefined) {
+            return value;
+        }
+        const isFavorable = obj.is_favorable;
+        const varianceClass = isFavorable === false ? "negative" : "positive";
+        const changeText = formatBusinessChange(obj);
+        return `
+            <span class="metric-current">${value}</span>
+            <span class="analytics-trend">Prev: ${escapeHtml(formatAmount(obj.previous_value))}</span>
+            <span class="analytics-trend ${varianceClass}">${escapeHtml(changeText)}</span>
+        `;
     };
 
-    document.getElementById("anCashBank").innerText = getVal(analytics.cash_and_bank);
-    document.getElementById("anReceivables").innerText = getVal(analytics.receivables);
-    document.getElementById("anPayables").innerText = getVal(analytics.payables);
-    document.getElementById("anCurrentAssets").innerText = getVal(analytics.current_assets);
-    document.getElementById("anCurrentLiabilities").innerText = getVal(analytics.current_liabilities);
-    document.getElementById("anWorkingCapital").innerText = getVal(analytics.working_capital);
-    document.getElementById("anFixedAssets").innerText = getVal(analytics.fixed_assets);
-    document.getElementById("anInvestments").innerText = getVal(analytics.investments);
+    document.getElementById("anCashBank").innerHTML = getMetricHtml(analytics.cash_and_bank);
+    document.getElementById("anReceivables").innerHTML = getMetricHtml(analytics.receivables);
+    document.getElementById("anPayables").innerHTML = getMetricHtml(analytics.payables);
+    document.getElementById("anCurrentAssets").innerHTML = getMetricHtml(analytics.current_assets);
+    document.getElementById("anCurrentLiabilities").innerHTML = getMetricHtml(analytics.current_liabilities);
+    document.getElementById("anWorkingCapital").innerHTML = getMetricHtml(analytics.working_capital);
+    document.getElementById("anFixedAssets").innerHTML = getMetricHtml(analytics.fixed_assets);
+    document.getElementById("anInvestments").innerHTML = getMetricHtml(analytics.investments);
+    bindAnalyticsCalculationCards(analytics);
 
     const renderRankingList = (list, elementId) => {
         const el = document.getElementById(elementId);
@@ -398,6 +430,126 @@ function renderAnalytics(analytics) {
     renderRankingList(analytics.largest_liabilities, "anLargestLiabilities");
     renderRankingList(analytics.largest_income_accounts, "anTopIncome");
     renderRankingList(analytics.largest_expense_accounts, "anTopExpenses");
+}
+
+function bindAnalyticsCalculationCards(analytics) {
+    document.querySelectorAll("[data-analytics-metric]").forEach(card => {
+        const metricKey = card.dataset.analyticsMetric;
+        const metric = analytics ? analytics[metricKey] : null;
+        card.classList.toggle("is-clickable", Boolean(metric));
+        card.onclick = () => {
+            if (metric) showCalculationModal(card.dataset.analyticsLabel || metricKey, metric);
+        };
+        card.onkeydown = event => {
+            if (!metric || (event.key !== "Enter" && event.key !== " ")) return;
+            event.preventDefault();
+            showCalculationModal(card.dataset.analyticsLabel || metricKey, metric);
+        };
+    });
+}
+
+function renderCalculationSection(title, calculation) {
+    if (!calculation) return "";
+    const lines = calculation.lines || [];
+    const lineRows = lines.length
+        ? lines.map(line => {
+            const inputs = (line.inputs || [])
+                .map(input => `${escapeHtml(input.label)}: ${escapeHtml(formatAmount(input.value))}`)
+                .join("<br>");
+            return `
+                <tr>
+                    <td>${escapeHtml(line.label || "-")}</td>
+                    <td>${escapeHtml(line.calculation || calculation.formula || "-")}</td>
+                    <td>${inputs || "-"}</td>
+                    <td>${escapeHtml(formatAmount(line.value))}</td>
+                </tr>
+            `;
+        }).join("")
+        : `<tr><td colspan="4">No line-level calculation available.</td></tr>`;
+
+    return `
+        <div class="calculation-section">
+            <h3>${escapeHtml(title)}</h3>
+            <p class="calculation-formula"><strong>Formula:</strong> ${escapeHtml(calculation.formula || "-")}</p>
+            <table class="calculation-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Calculation</th>
+                        <th>Inputs</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${lineRows}
+                </tbody>
+            </table>
+            <p class="calculation-result">
+                ${escapeHtml(calculation.result?.label || "Result")}: ${escapeHtml(formatAmount(calculation.result?.value))}
+            </p>
+        </div>
+    `;
+}
+
+function renderComparisonCalculation(metric) {
+    const comparison = metric.comparison_calculation;
+    if (!comparison) return "";
+    const variance = Number(metric.variance_amount || 0);
+    const varianceClass = variance >= 0 ? "positive" : "negative";
+    const percentText = metric.variance_percentage === null || metric.variance_percentage === undefined
+        ? "N/A"
+        : `${formatAmount(metric.variance_percentage)}%`;
+    const displayAmount = Number(metric.display_change_amount ?? metric.variance_amount ?? 0);
+    const displayPercentage = metric.display_change_percentage ?? metric.variance_percentage;
+    const displayClass = metric.is_favorable === false ? "negative" : "positive";
+    const displayLabel = metric.display_change_label || (displayAmount > 0 ? "Increased" : displayAmount < 0 ? "Decreased" : "No change");
+    const interpretation = displayAmount === 0
+        ? "No change"
+        : `${displayLabel} by ${formatAmount(Math.abs(displayAmount))}${displayPercentage === null || displayPercentage === undefined ? "" : ` (${formatAmount(Math.abs(displayPercentage))}%)`}`;
+    return `
+        <div class="calculation-section">
+            <h3>Comparison</h3>
+            <p class="calculation-result">
+                Business interpretation: <span class="${displayClass}">${escapeHtml(interpretation)}</span>
+            </p>
+            <p class="calculation-formula"><strong>Accounting formula:</strong> Current Value - Previous Value</p>
+            <div class="calculation-equation">
+                ${escapeHtml(formatAmount(metric.value))} - ${escapeHtml(formatAmount(metric.previous_value))}
+                = <span class="${varianceClass}">${escapeHtml(formatAmount(metric.variance_amount))}</span>
+            </div>
+            <p class="calculation-result">
+                Accounting variance %: ${escapeHtml(formatAmount(metric.variance_amount))} / ${escapeHtml(formatAmount(metric.previous_value))} x 100 = ${escapeHtml(percentText)}
+            </p>
+        </div>
+    `;
+}
+
+function showCalculationModal(label, metric) {
+    const modal = document.getElementById("calculationModal");
+    const title = document.getElementById("calculationTitle");
+    const body = document.getElementById("calculationBody");
+    if (!modal || !title || !body) return;
+
+    title.innerText = `${label} Calculation`;
+    body.innerHTML = [
+        renderCalculationSection("Current Period", metric.calculation),
+        renderCalculationSection("Previous Period", metric.previous_calculation),
+        renderComparisonCalculation(metric)
+    ].filter(Boolean).join("");
+
+    modal.style.display = "flex";
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    const closeButton = document.getElementById("calculationClose");
+    if (closeButton) closeButton.focus();
+}
+
+function closeCalculationModal() {
+    const modal = document.getElementById("calculationModal");
+    if (!modal) return;
+    modal.style.display = "none";
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
 }
 
 function renderSummary(data) {
@@ -500,6 +652,10 @@ window.addEventListener("click", function(e) {
     }
 });
 
+window.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") closeCalculationModal();
+});
+
 function exportReport(format) {
     if (!currentData) {
         alert("No report data available to export");
@@ -588,20 +744,38 @@ function exportPDF(data) {
     doc.text("2. Financial Analytics", 14, currentY);
     
     const analytics = data.analytics || {};
-    const analyticsRows = [
-        ["Cash & Bank", formatAmount(analytics.cash_and_bank?.value)],
-        ["Receivables", formatAmount(analytics.receivables?.value)],
-        ["Payables", formatAmount(analytics.payables?.value)],
-        ["Current Assets", formatAmount(analytics.current_assets?.value)],
-        ["Current Liabilities", formatAmount(analytics.current_liabilities?.value)],
-        ["Working Capital", formatAmount(analytics.working_capital?.value)],
-        ["Fixed Assets", formatAmount(analytics.fixed_assets?.value)],
-        ["Investments", formatAmount(analytics.investments?.value)]
+    const analyticsMetrics = [
+        ["Cash & Bank", analytics.cash_and_bank],
+        ["Receivables", analytics.receivables],
+        ["Payables", analytics.payables],
+        ["Current Assets", analytics.current_assets],
+        ["Current Liabilities", analytics.current_liabilities],
+        ["Working Capital", analytics.working_capital],
+        ["Fixed Assets", analytics.fixed_assets],
+        ["Investments", analytics.investments]
     ];
+    const hasAnalyticsComparison = analyticsMetrics.some(([, metric]) => metric && metric.previous_value !== undefined);
+    const analyticsRows = analyticsMetrics.map(([label, metric]) => (
+        hasAnalyticsComparison
+            ? [
+                label,
+                formatAmount(metric?.previous_value),
+                formatAmount(metric?.value),
+                formatAmount(metric?.variance_amount),
+                metric?.variance_percentage === null || metric?.variance_percentage === undefined
+                    ? "-"
+                    : `${formatAmount(metric.variance_percentage)}%`,
+                formatBusinessChange(metric)
+            ]
+            : [label, formatAmount(metric?.value)]
+    ));
     
     doc.autoTable({
         startY: currentY + 4,
-        head: [["Metric", "Value"]],
+        head: [hasAnalyticsComparison
+            ? ["Metric", "Previous", "Current", "Accounting Variance", "Variance %", "Business Change"]
+            : ["Metric", "Value"]
+        ],
         body: analyticsRows,
         theme: "striped",
         headStyles: { fillColor: [16, 185, 129] }, // Emerald green
@@ -721,18 +895,35 @@ function exportExcel(data) {
     
     // Sheet 3: Analytics
     const analytics = data.analytics || {};
+    const analyticsMetrics = [
+        ["Cash & Bank", analytics.cash_and_bank],
+        ["Receivables", analytics.receivables],
+        ["Payables", analytics.payables],
+        ["Current Assets", analytics.current_assets],
+        ["Current Liabilities", analytics.current_liabilities],
+        ["Working Capital", analytics.working_capital],
+        ["Fixed Assets", analytics.fixed_assets],
+        ["Investments", analytics.investments]
+    ];
+    const hasAnalyticsComparison = analyticsMetrics.some(([, metric]) => metric && metric.previous_value !== undefined);
     const analyticsData = [
         ["FinSight AI - Financial Analytics"],
         [],
-        ["Metric", "Value"],
-        ["Cash & Bank", formatRawNumber(analytics.cash_and_bank?.value)],
-        ["Receivables", formatRawNumber(analytics.receivables?.value)],
-        ["Payables", formatRawNumber(analytics.payables?.value)],
-        ["Current Assets", formatRawNumber(analytics.current_assets?.value)],
-        ["Current Liabilities", formatRawNumber(analytics.current_liabilities?.value)],
-        ["Working Capital", formatRawNumber(analytics.working_capital?.value)],
-        ["Fixed Assets", formatRawNumber(analytics.fixed_assets?.value)],
-        ["Investments", formatRawNumber(analytics.investments?.value)],
+        hasAnalyticsComparison
+            ? ["Metric", "Previous Value", "Current Value", "Accounting Variance", "Variance Percentage", "Business Change"]
+            : ["Metric", "Value"],
+        ...analyticsMetrics.map(([label, metric]) => (
+            hasAnalyticsComparison
+                ? [
+                    label,
+                    formatRawNumber(metric?.previous_value),
+                    formatRawNumber(metric?.value),
+                    formatRawNumber(metric?.variance_amount),
+                    formatRawNumber(metric?.variance_percentage),
+                    formatBusinessChange(metric)
+                ]
+                : [label, formatRawNumber(metric?.value)]
+        )),
         [],
         ["Ranking List", "Account", "Value"]
     ];

@@ -2,10 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables early
-load_dotenv()
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(BACKEND_DIR / ".env", override=True)
 
 from app.routes.upload import router as upload_router
 from app.routes.auth_routes import router as auth_router

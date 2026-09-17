@@ -194,6 +194,50 @@ def extract_category_value(rows, category_name, section, statement_type):
                 return cc - cd
     return None
 
+def category_calculation(rows, category_name, section, result_label=None):
+    target = normalize_account_name(category_name)
+    debit_normal = section in ("assets", "expenses")
+    formula = "Closing Debit - Closing Credit" if debit_normal else "Closing Credit - Closing Debit"
+    for row in rows:
+        if normalize_account_name(row.get("account", "")) == target:
+            raw = row.get("raw_row", {})
+            debit = clean_amount(raw.get("closing_debit", raw.get("debit")))
+            credit = clean_amount(raw.get("closing_credit", raw.get("credit")))
+            value = debit - credit if debit_normal else credit - debit
+            return {
+                "title": result_label or category_name,
+                "formula": formula,
+                "lines": [{
+                    "label": row.get("account", category_name),
+                    "calculation": f"Closing {'Debit' if debit_normal else 'Credit'} - Closing {'Credit' if debit_normal else 'Debit'}",
+                    "inputs": [
+                        {"label": "Closing Debit", "value": round(debit, 2)},
+                        {"label": "Closing Credit", "value": round(credit, 2)},
+                    ],
+                    "value": round(value, 2),
+                }],
+                "result": {"label": result_label or category_name, "value": round(value, 2)},
+            }
+    return {
+        "title": result_label or category_name,
+        "formula": formula,
+        "lines": [{
+            "label": category_name,
+            "calculation": "Account not found, treated as zero",
+            "inputs": [],
+            "value": 0.0,
+        }],
+        "result": {"label": result_label or category_name, "value": 0.0},
+    }
+
+def combined_calculation(title, formula, lines, value):
+    return {
+        "title": title,
+        "formula": formula,
+        "lines": lines,
+        "result": {"label": title, "value": round(value, 2)},
+    }
+
 def get_cash_bank_value(rows, statement_type):
     val_cash = extract_category_value(rows, "Cash-in-hand", "assets", statement_type)
     val_bank = extract_category_value(rows, "Bank Accounts", "assets", statement_type)
@@ -243,37 +287,104 @@ def compute_analytics(mapped, current_normalized_rows, statement_type):
     rows = current_normalized_rows
     
     # 1. Cash & Bank
+    cash_calc = category_calculation(rows, "Cash-in-hand", "assets", "Cash-in-hand")
+    bank_calc = category_calculation(rows, "Bank Accounts", "assets", "Bank Accounts")
     cb_val = get_cash_bank_value(rows, st)
+    cb_calc = combined_calculation(
+        "Cash & Bank",
+        "Cash-in-hand + Bank Accounts",
+        [
+            {
+                "label": "Cash-in-hand",
+                "calculation": cash_calc["formula"],
+                "inputs": cash_calc["lines"][0]["inputs"],
+                "value": cash_calc["result"]["value"],
+            },
+            {
+                "label": "Bank Accounts",
+                "calculation": bank_calc["formula"],
+                "inputs": bank_calc["lines"][0]["inputs"],
+                "value": bank_calc["result"]["value"],
+            },
+        ],
+        cb_val,
+    )
     
     # 2. Fixed Assets
     fa_val = extract_category_value(rows, "Fixed Assets", "assets", st) or 0.0
+    fa_calc = category_calculation(rows, "Fixed Assets", "assets", "Fixed Assets")
     
     # 3. Investments
     inv_val = extract_category_value(rows, "Investments", "assets", st) or 0.0
+    inv_calc = category_calculation(rows, "Investments", "assets", "Investments")
     
     # 4. Receivables
+    rec_account = "DUES FROM MEMBERS"
     rec_val = extract_category_value(rows, "DUES FROM MEMBERS", "assets", st)
     if rec_val is None:
+        rec_account = "Sundry Debtors"
         rec_val = extract_category_value(rows, "Sundry Debtors", "assets", st) or 0.0
+    rec_calc = category_calculation(rows, rec_account, "assets", "Receivables")
         
     # 5. Payables
+    pay_account = "Sundry Creditors"
     pay_val = extract_category_value(rows, "Sundry Creditors", "liabilities", st)
     if pay_val is None:
+        pay_account = "Payables"
         pay_val = extract_category_value(rows, "Payables", "liabilities", st) or 0.0
+    pay_calc = category_calculation(rows, pay_account, "liabilities", "Payables")
         
     # Summary
     summary = build_summary(mapped, current_normalized_rows, statement_type)
     tot_assets = summary.get("total_assets") or 0.0
     tot_liabilities = summary.get("total_liabilities") or 0.0
+    total_assets_calc = category_calculation(rows, "Assets", "assets", "Total Assets")
+    total_liabilities_calc = category_calculation(rows, "Liabilities", "liabilities", "Total Liabilities")
     
     # 6. Current Assets
     ca_val = round(tot_assets - fa_val, 2)
+    ca_calc = combined_calculation(
+        "Current Assets",
+        "Total Assets - Fixed Assets",
+        [
+            {
+                "label": "Total Assets",
+                "calculation": total_assets_calc["formula"],
+                "inputs": total_assets_calc["lines"][0]["inputs"],
+                "value": round(tot_assets, 2),
+            },
+            {"label": "Fixed Assets", "calculation": fa_calc["formula"], "inputs": fa_calc["lines"][0]["inputs"], "value": round(fa_val, 2)},
+        ],
+        ca_val,
+    )
     
     # 7. Current Liabilities
     cl_val = tot_liabilities
+    cl_calc = combined_calculation(
+        "Current Liabilities",
+        "Total Liabilities",
+        [
+            {
+                "label": "Total Liabilities",
+                "calculation": total_liabilities_calc["formula"],
+                "inputs": total_liabilities_calc["lines"][0]["inputs"],
+                "value": round(cl_val, 2),
+            },
+        ],
+        cl_val,
+    )
     
     # 8. Working Capital
     wc_val = round(ca_val - cl_val, 2)
+    wc_calc = combined_calculation(
+        "Working Capital",
+        "Current Assets - Current Liabilities",
+        [
+            {"label": "Current Assets", "calculation": "Total Assets - Fixed Assets", "inputs": [], "value": round(ca_val, 2)},
+            {"label": "Current Liabilities", "calculation": "Total Liabilities", "inputs": [], "value": round(cl_val, 2)},
+        ],
+        wc_val,
+    )
     
     # Income breakdown & Expense breakdown lists (direct from mapped rows)
     expense_list = []
@@ -333,19 +444,89 @@ def compute_analytics(mapped, current_normalized_rows, statement_type):
     largest_liability_accounts = deduplicate_accounts(sorted_liabs)[:10]
 
     return {
-        "cash_and_bank": {"value": round(cb_val, 2), "accounts": ["Cash-in-hand", "Bank Accounts"]},
-        "fixed_assets": {"value": round(fa_val, 2), "accounts": ["Fixed Assets"]},
-        "investments": {"value": round(inv_val, 2), "accounts": ["Investments"]},
-        "receivables": {"value": round(rec_val, 2), "accounts": ["DUES FROM MEMBERS"]},
-        "payables": {"value": round(pay_val, 2), "accounts": ["Sundry Creditors"]},
-        "current_assets": {"value": round(ca_val, 2), "accounts": ["Current Assets"]},
-        "current_liabilities": {"value": round(cl_val, 2), "accounts": ["Current Liabilities"]},
-        "working_capital": {"value": round(wc_val, 2), "accounts": ["Working Capital"]},
+        "cash_and_bank": {"value": round(cb_val, 2), "accounts": ["Cash-in-hand", "Bank Accounts"], "calculation": cb_calc},
+        "fixed_assets": {"value": round(fa_val, 2), "accounts": ["Fixed Assets"], "calculation": fa_calc},
+        "investments": {"value": round(inv_val, 2), "accounts": ["Investments"], "calculation": inv_calc},
+        "receivables": {"value": round(rec_val, 2), "accounts": [rec_account], "calculation": rec_calc},
+        "payables": {"value": round(pay_val, 2), "accounts": [pay_account], "calculation": pay_calc},
+        "current_assets": {"value": round(ca_val, 2), "accounts": ["Current Assets"], "calculation": ca_calc},
+        "current_liabilities": {"value": round(cl_val, 2), "accounts": ["Current Liabilities"], "calculation": cl_calc},
+        "working_capital": {"value": round(wc_val, 2), "accounts": ["Working Capital"], "calculation": wc_calc},
         "largest_income_accounts": largest_income_accounts,
         "largest_expense_accounts": largest_expense_accounts,
         "largest_assets": largest_asset_accounts,
         "largest_liabilities": largest_liability_accounts
     }
+
+def add_analytics_comparison(current_analytics, previous_analytics):
+    if not current_analytics or not previous_analytics:
+        return current_analytics
+
+    metric_keys = (
+        "cash_and_bank",
+        "fixed_assets",
+        "investments",
+        "receivables",
+        "payables",
+        "current_assets",
+        "current_liabilities",
+        "working_capital",
+    )
+    lower_is_better = {"receivables", "payables", "current_liabilities"}
+    higher_is_better = {"cash_and_bank", "current_assets", "working_capital"}
+    for key in metric_keys:
+        current_metric = current_analytics.get(key)
+        previous_metric = previous_analytics.get(key)
+        if not isinstance(current_metric, dict) or not isinstance(previous_metric, dict):
+            continue
+
+        current_value = current_metric.get("value")
+        previous_value = previous_metric.get("value")
+        if current_value is None or previous_value is None:
+            continue
+
+        variance = round(current_value - previous_value, 2)
+        variance_percentage = None if previous_value == 0 else round(variance / abs(previous_value) * 100, 2)
+        if key in lower_is_better:
+            display_amount = round(previous_value - current_value, 2)
+            display_percentage = None if previous_value == 0 else round(display_amount / abs(previous_value) * 100, 2)
+            display_label = "Reduced" if display_amount > 0 else "Increased" if display_amount < 0 else "No change"
+            is_favorable = display_amount >= 0
+        elif key in higher_is_better:
+            display_amount = variance
+            display_percentage = variance_percentage
+            display_label = "Increased" if display_amount > 0 else "Decreased" if display_amount < 0 else "No change"
+            is_favorable = display_amount >= 0
+        else:
+            display_amount = variance
+            display_percentage = variance_percentage
+            display_label = "Changed" if display_amount != 0 else "No change"
+            is_favorable = None
+
+        current_metric["previous_value"] = round(previous_value, 2)
+        current_metric["variance_amount"] = variance
+        current_metric["variance_percentage"] = variance_percentage
+        current_metric["display_change_amount"] = round(display_amount, 2)
+        current_metric["display_change_percentage"] = display_percentage
+        current_metric["display_change_label"] = display_label
+        current_metric["is_favorable"] = is_favorable
+        current_metric["previous_calculation"] = previous_metric.get("calculation")
+        current_metric["comparison_calculation"] = {
+            "title": f"{current_metric.get('calculation', {}).get('title', key)} Movement",
+            "formula": "Current Value - Previous Value",
+            "lines": [
+                {"label": "Previous Value", "calculation": "Previous period result", "inputs": [], "value": round(previous_value, 2)},
+                {"label": "Current Value", "calculation": "Current period result", "inputs": [], "value": round(current_value, 2)},
+            ],
+            "result": {"label": "Variance", "value": variance},
+            "variance_percentage": current_metric["variance_percentage"],
+            "display_change_amount": current_metric["display_change_amount"],
+            "display_change_percentage": current_metric["display_change_percentage"],
+            "display_change_label": current_metric["display_change_label"],
+            "is_favorable": current_metric["is_favorable"],
+        }
+
+    return current_analytics
 
 def get_warnings(mapped, current_normalized_rows, statement_type, summary, analytics):
     warnings = []
@@ -463,7 +644,13 @@ def compare_periods(current, previous):
         })
     return results
 
-def analyze(mapped, previous_mapped=None, current_normalized_rows=None, statement_type="auto_detect"):
+def analyze(
+    mapped,
+    previous_mapped=None,
+    current_normalized_rows=None,
+    statement_type="auto_detect",
+    previous_normalized_rows=None,
+):
     rows = _analysis_rows(mapped)
     comparison_results = (
         compare_periods(mapped, previous_mapped)
@@ -473,6 +660,12 @@ def analyze(mapped, previous_mapped=None, current_normalized_rows=None, statemen
     
     summary = build_summary(mapped, current_normalized_rows, statement_type)
     analytics = compute_analytics(mapped, current_normalized_rows, statement_type)
+    previous_summary = None
+    previous_analytics = None
+    if previous_mapped is not None and previous_normalized_rows is not None:
+        previous_summary = build_summary(previous_mapped, previous_normalized_rows, statement_type)
+        previous_analytics = compute_analytics(previous_mapped, previous_normalized_rows, statement_type)
+        analytics = add_analytics_comparison(analytics, previous_analytics)
     warnings = get_warnings(mapped, current_normalized_rows, statement_type, summary, analytics)
     
     top_accounts = sorted(
@@ -497,7 +690,9 @@ def analyze(mapped, previous_mapped=None, current_normalized_rows=None, statemen
         )[:10]
     ai_input = {
         "summary": summary,
+        "previous_summary": previous_summary,
         "analytics": analytics,
+        "previous_analytics": previous_analytics,
         "warnings": warnings,
         "top_accounts": top_accounts,
         "unusual_balances": unusual_balances,
@@ -507,7 +702,9 @@ def analyze(mapped, previous_mapped=None, current_normalized_rows=None, statemen
     }
     return {
         "summary": summary,
+        "previous_summary": previous_summary,
         "analytics": analytics,
+        "previous_analytics": previous_analytics,
         "warnings": warnings,
         "top_accounts": top_accounts,
         "top_increases": top_increases,

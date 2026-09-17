@@ -288,27 +288,27 @@
                 <div class="analytics-section">
                     <h3>Liquidity</h3>
                     <div class="analytics-grid">
-                        <div class="analytics-item">
+                        <div class="analytics-item" data-analytics-metric="cash_and_bank" data-analytics-label="Cash & Bank" role="button" tabindex="0" title="View calculation">
                             <h4>Cash & Bank</h4>
                             <p id="anCashBank">-</p>
                         </div>
-                        <div class="analytics-item">
+                        <div class="analytics-item" data-analytics-metric="receivables" data-analytics-label="Receivables" role="button" tabindex="0" title="View calculation">
                             <h4>Receivables</h4>
                             <p id="anReceivables">-</p>
                         </div>
-                        <div class="analytics-item">
+                        <div class="analytics-item" data-analytics-metric="payables" data-analytics-label="Payables" role="button" tabindex="0" title="View calculation">
                             <h4>Payables</h4>
                             <p id="anPayables">-</p>
                         </div>
-                        <div class="analytics-item">
+                        <div class="analytics-item" data-analytics-metric="current_assets" data-analytics-label="Current Assets" role="button" tabindex="0" title="View calculation">
                             <h4>Current Assets</h4>
                             <p id="anCurrentAssets">-</p>
                         </div>
-                        <div class="analytics-item">
+                        <div class="analytics-item" data-analytics-metric="current_liabilities" data-analytics-label="Current Liabilities" role="button" tabindex="0" title="View calculation">
                             <h4>Current Liabilities</h4>
                             <p id="anCurrentLiabilities">-</p>
                         </div>
-                        <div class="analytics-item">
+                        <div class="analytics-item" data-analytics-metric="working_capital" data-analytics-label="Working Capital" role="button" tabindex="0" title="View calculation">
                             <h4>Working Capital</h4>
                             <p id="anWorkingCapital">-</p>
                         </div>
@@ -319,11 +319,11 @@
                 <div class="analytics-section">
                     <h3>Assets & Liabilities</h3>
                     <div class="analytics-grid">
-                        <div class="analytics-item">
+                        <div class="analytics-item" data-analytics-metric="fixed_assets" data-analytics-label="Fixed Assets" role="button" tabindex="0" title="View calculation">
                             <h4>Fixed Assets</h4>
                             <p id="anFixedAssets">-</p>
                         </div>
-                        <div class="analytics-item">
+                        <div class="analytics-item" data-analytics-metric="investments" data-analytics-label="Investments" role="button" tabindex="0" title="View calculation">
                             <h4>Investments</h4>
                             <p id="anInvestments">-</p>
                         </div>
@@ -398,6 +398,17 @@
             </table>
 
         </div>
+    <!-- ========================= -->
+    <!-- CALCULATION MODAL -->
+    <!-- ========================= -->
+    <div id="calculationModal" class="calculation-modal" style="display: none;" aria-hidden="true">
+        <div class="calculation-dialog" role="dialog" aria-modal="true" aria-labelledby="calculationTitle">
+            <button type="button" class="calculation-close" id="calculationClose" aria-label="Close calculation">&times;</button>
+            <h2 id="calculationTitle">Calculation</h2>
+            <div id="calculationBody" class="calculation-body"></div>
+        </div>
+    </div>
+
     <!-- ========================= -->
     <!-- LOGIN OVERLAY -->
     <!-- ========================= -->

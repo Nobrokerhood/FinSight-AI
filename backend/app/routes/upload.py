@@ -101,7 +101,7 @@ async def analyze_statement(
         previous_rows = normalize_rows(previous_parsed["data"])
         previous_mapped = map_statement(previous_rows, resolved_type)
 
-    results = analyze(current_mapped, previous_mapped, current_rows, resolved_type)
+    results = analyze(current_mapped, previous_mapped, current_rows, resolved_type, previous_rows)
     mapped_section_count = sum(bool(rows) for rows in current_mapped.values())
     print("statement_type:", resolved_type)
     print("current rows count:", len(current_rows))
@@ -183,7 +183,9 @@ async def analyze_statement(
             else None
         ),
         "summary": results["summary"],
+        "previous_summary": results["previous_summary"],
         "analytics": results["analytics"],
+        "previous_analytics": results["previous_analytics"],
         "warnings": results["warnings"],
         "top_accounts": results["top_accounts"],
         "top_increases": results["top_increases"],

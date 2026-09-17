@@ -25,10 +25,30 @@ def _fallback_insights(statement_type, data):
         except (ValueError, TypeError):
             return str(val)
 
-    cb = analytics.get("cash_and_bank", {}).get("value")
-    wc = analytics.get("working_capital", {}).get("value")
-    rec = analytics.get("receivables", {}).get("value")
-    pay = analytics.get("payables", {}).get("value")
+    def movement(metric):
+        if not isinstance(metric, dict) or "previous_value" not in metric:
+            return ""
+        amount = metric.get("display_change_amount", metric.get("variance_amount"))
+        percentage = metric.get("display_change_percentage", metric.get("variance_percentage"))
+        label = metric.get("display_change_label")
+        favorable = metric.get("is_favorable")
+        if amount is None:
+            return ""
+        if amount == 0:
+            return " It remained unchanged from the previous period."
+        direction = (label or ("increased" if amount > 0 else "decreased")).lower()
+        percent_text = f" ({percentage:.2f}%)" if percentage is not None else ""
+        note = " This is favorable." if favorable is True else " This needs attention." if favorable is False else ""
+        return f" It {direction} by {fmt(abs(amount))}{percent_text} from the previous period.{note}"
+
+    cb_metric = analytics.get("cash_and_bank", {})
+    wc_metric = analytics.get("working_capital", {})
+    rec_metric = analytics.get("receivables", {})
+    pay_metric = analytics.get("payables", {})
+    cb = cb_metric.get("value")
+    wc = wc_metric.get("value")
+    rec = rec_metric.get("value")
+    pay = pay_metric.get("value")
     fa = analytics.get("fixed_assets", {}).get("value")
     inv = analytics.get("investments", {}).get("value")
 
@@ -42,7 +62,7 @@ def _fallback_insights(statement_type, data):
 
     return [
         f"**Executive Summary**: This is a {statement_type.replace('_', ' ')} statement. Total assets are {fmt(summary.get('total_assets'))} and total equity (society's share) is {fmt(summary.get('equity'))}.",
-        f"**Liquidity Analysis**: Cash & bank balance is {fmt(cb)}. Money owed to the society (receivables) is {fmt(rec)}, and money the society owes (payables) is {fmt(pay)}.",
+        f"**Liquidity Analysis**: Cash & bank balance is {fmt(cb)}.{movement(cb_metric)} Money owed to the society (receivables) is {fmt(rec)}.{movement(rec_metric)} Money the society owes (payables) is {fmt(pay)}.",
         f"**Asset Analysis**: Fixed assets (like property, equipment) are worth {fmt(fa)}, and long-term investments are worth {fmt(inv)}.",
         f"**Income Analysis**: Total income earned in this period is {fmt(inc_val)}.",
         f"**Expense Analysis**: Total expenses spent in this period are {fmt(exp_val)}.",
@@ -54,7 +74,7 @@ def _fallback_insights(statement_type, data):
             f"**Highest Expense**: The biggest expense is \"{top_expense['account']}\", costing {fmt(top_expense['value'])}."
             if top_expense else "**Highest Expense**: No expense accounts found."
         ),
-        f"**Risk Observations**: Net working capital (short-term funds available) is {fmt(wc)}. This should be watched closely to make sure day-to-day bills can be paid on time.",
+        f"**Risk Observations**: Net working capital (short-term funds available) is {fmt(wc)}.{movement(wc_metric)} This should be watched closely to make sure day-to-day bills can be paid on time.",
         f"**Business Recommendations**: Keep an eye on payables of {fmt(pay)} and try to collect receivables of {fmt(rec)} faster to keep enough cash on hand for the society."
     ]
 
@@ -82,7 +102,11 @@ def generate_financial_insights(statement_type, financial_data):
 
     filtered_data = {
         "summary": financial_data.get("summary", {}),
-        "analytics": financial_data.get("analytics", {})
+        "previous_summary": financial_data.get("previous_summary", {}),
+        "analytics": financial_data.get("analytics", {}),
+        "previous_analytics": financial_data.get("previous_analytics", {}),
+        "top_increases": financial_data.get("top_increases", []),
+        "top_decreases": financial_data.get("top_decreases", []),
     }
 
     prompt = f"""
@@ -108,6 +132,8 @@ Guidelines:
 - Return exactly 9-10 concise bullet points in total, using prefix format: '• **[Section Name]**: [Insight]'
 - Use the actual numbers from the data below wherever relevant (e.g. "cash is 1,50,000") so the
   reader can see the figures, not just a vague description.
+- If any analytics metric includes previous_value / variance_amount / variance_percentage, explain the
+  current period and the change from the previous period.
 - For "Highest Income Source" and "Highest Expense", name the specific account with the largest
   value from the largest_income_accounts / largest_expense_accounts lists and state its amount.
 - Do NOT perform any mathematical calculations of your own. Use only the supplied pre-calculated values.
