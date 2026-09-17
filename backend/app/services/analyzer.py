@@ -1,3 +1,9 @@
+import math
+import re
+
+from app.services.profit_loss_analyzer import compute_profit_loss_analytics, summarize_profit_loss
+
+
 def _all_rows(mapped):
     return [row for rows in mapped.values() for row in rows]
 
@@ -34,10 +40,6 @@ def _total(mapped, *sections):
         section: mapped.get(section, []) for section in sections
     })
     return round(sum(row["amount"] for row in analysis_rows), 2)
-
-
-import math
-import re
 
 def clean_amount(value):
     if value in (None, "", "-"):
@@ -151,10 +153,7 @@ def build_summary(mapped, normalized_rows=None, statement_type="auto_detect"):
             total_liabilities = extract_direct_value(normalized_rows, "liabilities")
             equity_val = extract_direct_value(normalized_rows, "equity")
         elif st in ("profit_and_loss", "income_expense"):
-            total_income = extract_direct_value(normalized_rows, "income")
-            if total_income is None:
-                total_income = extract_direct_value(normalized_rows, "revenue")
-            total_expenses = extract_direct_value(normalized_rows, "expenses")
+            return summarize_profit_loss(normalized_rows)
 
         return {
             "total_income": total_income,
@@ -285,6 +284,9 @@ def compute_analytics(mapped, current_normalized_rows, statement_type):
         
     st = str(statement_type).lower().strip()
     rows = current_normalized_rows
+
+    if st in ("profit_and_loss", "income_expense"):
+        return compute_profit_loss_analytics(rows)
     
     # 1. Cash & Bank
     cash_calc = category_calculation(rows, "Cash-in-hand", "assets", "Cash-in-hand")
@@ -471,9 +473,37 @@ def add_analytics_comparison(current_analytics, previous_analytics):
         "current_assets",
         "current_liabilities",
         "working_capital",
+        "total_income",
+        "total_expenses",
+        "net_profit",
+        "profit_margin",
+        "expense_ratio",
+        "sales_accounts",
+        "direct_income",
+        "indirect_income",
+        "direct_expenses",
+        "indirect_expenses",
     )
-    lower_is_better = {"receivables", "payables", "current_liabilities"}
-    higher_is_better = {"cash_and_bank", "current_assets", "working_capital"}
+    lower_is_better = {
+        "receivables",
+        "payables",
+        "current_liabilities",
+        "total_expenses",
+        "expense_ratio",
+        "direct_expenses",
+        "indirect_expenses",
+    }
+    higher_is_better = {
+        "cash_and_bank",
+        "current_assets",
+        "working_capital",
+        "total_income",
+        "net_profit",
+        "profit_margin",
+        "sales_accounts",
+        "direct_income",
+        "indirect_income",
+    }
     for key in metric_keys:
         current_metric = current_analytics.get(key)
         previous_metric = previous_analytics.get(key)
@@ -597,11 +627,20 @@ def get_warnings(mapped, current_normalized_rows, statement_type, summary, analy
     # 6. Duplicate account names
     seen_names = set()
     dup_names = set()
+    expected_duplicate_names = set()
+    if st in ("profit_and_loss", "income_expense"):
+        expected_duplicate_names = {
+            "direct expenses",
+            "indirect expenses",
+            "direct incomes",
+            "indirect incomes",
+            "total",
+        }
     for row in current_normalized_rows:
         name = row.get("account")
         if name:
             norm = normalize_account_name(name)
-            if norm in seen_names:
+            if norm in seen_names and norm not in expected_duplicate_names:
                 dup_names.add(name)
             seen_names.add(norm)
     for dup in sorted(list(dup_names)):

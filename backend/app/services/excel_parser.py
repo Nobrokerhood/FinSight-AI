@@ -59,6 +59,22 @@ def _find_header_row(rows):
     return best_index if best_score >= 2 else None
 
 
+def _find_side_by_side_statement(rows):
+    for row_index, row in enumerate(rows[:30]):
+        cells = [_lower(value) for value in row]
+        expense_columns = [
+            index for index, value in enumerate(cells)
+            if value in ("expenses", "expense")
+        ]
+        income_columns = [
+            index for index, value in enumerate(cells)
+            if value in ("income", "incomes", "revenue")
+        ]
+        if expense_columns and income_columns:
+            return row_index, expense_columns[0], income_columns[0]
+    return None
+
+
 def _find_account_columns(rows, header_index):
     header = [_lower(value) for value in rows[header_index]]
     columns = [
@@ -160,6 +176,46 @@ def _parse_tabular(rows, header_index):
     return parsed
 
 
+def _side_section(side, account, current_section):
+    lowered = _lower(account)
+    if side == "income":
+        return "income", "income"
+    if lowered in ("net profit", "net loss", "gross profit c/o", "gross loss c/o"):
+        return "net_profit_or_loss", current_section
+    if lowered in ("purchase accounts", "direct expenses", "direct expense"):
+        return "direct_expenses", "direct_expenses"
+    if lowered in ("indirect expenses", "indirect expense"):
+        return "indirect_expenses", "indirect_expenses"
+    return current_section or "direct_expenses", current_section
+
+
+def _parse_side_by_side(rows, layout):
+    header_index, expense_account_col, income_account_col = layout
+    parsed = []
+    sides = [
+        ("expenses", expense_account_col, expense_account_col + 1),
+        ("income", income_account_col, income_account_col + 1),
+    ]
+
+    for side, account_col, amount_col in sides:
+        current_section = "direct_expenses" if side == "expenses" else "income"
+        for row_number, row in enumerate(rows[header_index + 1:], start=header_index + 2):
+            account = _text(row[account_col]) if account_col < len(row) else ""
+            if not account:
+                continue
+            section_hint, current_section = _side_section(side, account, current_section)
+            parsed.append({
+                "account": account,
+                "amount": row[amount_col] if amount_col < len(row) else None,
+                "section_hint": section_hint,
+                "statement_side": side,
+                "source_row": row_number,
+                "source_column": account_col + 1,
+                "is_total": _lower(account) in ("total", "gross profit c/o", "gross loss c/o"),
+            })
+    return parsed
+
+
 def _parse_sectioned(rows):
     parsed = []
     section_hint = ""
@@ -206,20 +262,28 @@ def parse_excel(file_path):
     """Read the first worksheet and emit layout-neutral financial rows."""
     try:
         rows = _read_rows(file_path)
+        side_by_side_layout = _find_side_by_side_statement(rows)
         header_index = _find_header_row(rows)
         data = (
-            _parse_tabular(rows, header_index)
+            _parse_side_by_side(rows, side_by_side_layout)
+            if side_by_side_layout is not None
+            else _parse_tabular(rows, header_index)
             if header_index is not None
             else _parse_sectioned(rows)
         )
+        effective_header = (
+            side_by_side_layout[0]
+            if side_by_side_layout is not None
+            else header_index
+        )
         return {
             "status": "success",
-            "columns": rows[header_index] if header_index is not None else [],
+            "columns": rows[effective_header] if effective_header is not None else [],
             "report_text": " ".join(
                 _text(value) for row in rows[:6] for value in row
             ),
             "total_rows": len(data),
-            "header_row": header_index + 1 if header_index is not None else None,
+            "header_row": effective_header + 1 if effective_header is not None else None,
             "data": data,
         }
     except Exception as exc:

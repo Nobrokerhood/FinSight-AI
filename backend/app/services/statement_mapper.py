@@ -29,6 +29,8 @@ SECTION_ALIASES = {
 def _allowed_section(section, statement_type):
     if statement_type == "profit_and_loss" and section == "income":
         return "revenue"
+    if statement_type == "profit_and_loss" and section == "expenses":
+        return "indirect_expenses"
     if statement_type == "income_expense" and section in ("revenue", "direct_expenses", "indirect_expenses"):
         return "income" if section == "revenue" else "expenses"
     if statement_type == "trial_balance":
@@ -83,7 +85,8 @@ def map_statement(rows, statement_type):
         else:
             section = _allowed_section(hint, statement_type) if hint else current_section
         if section not in sections:
-            section = "unknown"
+            hinted_section = _allowed_section(hint, statement_type) if hint else ""
+            section = hinted_section if hinted_section in sections else "unknown"
 
         mapped_row = dict(row)
         mapped_row["section"] = section

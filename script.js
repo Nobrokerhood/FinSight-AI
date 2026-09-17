@@ -301,6 +301,11 @@ function formatAmount(value) {
         : value;
 }
 
+function formatMetricValue(metric, value = metric?.value) {
+    const formatted = formatAmount(value);
+    return metric?.unit === "%" && formatted !== "-" ? `${formatted}%` : formatted;
+}
+
 // Global helper to format raw value for clean excel cells
 function formatRawNumber(value) {
     if (value === null || value === undefined || value === "") return "";
@@ -318,6 +323,124 @@ function formatBusinessChange(metric) {
         ? ""
         : ` (${formatAmount(Math.abs(percentage))}%)`;
     return `${label} by ${formatAmount(Math.abs(amount))}${percentageText}`;
+}
+
+function getStatementType(data = currentData) {
+    return String(data?.statement_type || "").toLowerCase();
+}
+
+function isProfitLossReport(data = currentData) {
+    return ["profit_and_loss", "income_expense"].includes(getStatementType(data));
+}
+
+function getAnalyticsMetricRows(data = currentData) {
+    const analytics = data?.analytics || {};
+    if (isProfitLossReport(data)) {
+        return [
+            ["Total Income", analytics.total_income],
+            ["Total Expenses", analytics.total_expenses],
+            ["Net Profit", analytics.net_profit],
+            ["Profit Margin", analytics.profit_margin],
+            ["Expense Ratio", analytics.expense_ratio],
+            ["Sales Accounts", analytics.sales_accounts],
+            ["Direct Income", analytics.direct_income],
+            ["Indirect Income", analytics.indirect_income],
+            ["Direct Expenses", analytics.direct_expenses],
+            ["Indirect Expenses", analytics.indirect_expenses]
+        ];
+    }
+    return [
+        ["Cash & Bank", analytics.cash_and_bank],
+        ["Receivables", analytics.receivables],
+        ["Payables", analytics.payables],
+        ["Current Assets", analytics.current_assets],
+        ["Current Liabilities", analytics.current_liabilities],
+        ["Working Capital", analytics.working_capital],
+        ["Fixed Assets", analytics.fixed_assets],
+        ["Investments", analytics.investments]
+    ];
+}
+
+function metricCardHtml(metricKey, label, elementId) {
+    return `
+        <div class="analytics-item" data-analytics-metric="${metricKey}" data-analytics-label="${escapeHtml(label)}" role="button" tabindex="0" title="View calculation">
+            <h4>${escapeHtml(label)}</h4>
+            <p id="${elementId}">-</p>
+        </div>
+    `;
+}
+
+function rankingBoxHtml(title, elementId) {
+    return `
+        <div class="ranking-box">
+            <h4>${escapeHtml(title)}</h4>
+            <ul id="${elementId}"></ul>
+        </div>
+    `;
+}
+
+function renderAnalyticsLayout(container, profitLoss) {
+    if (profitLoss) {
+        container.innerHTML = `
+            <div class="analytics-section">
+                <h3>Profitability</h3>
+                <div class="analytics-grid">
+                    ${metricCardHtml("total_income", "Total Income", "anTotalIncome")}
+                    ${metricCardHtml("total_expenses", "Total Expenses", "anTotalExpenses")}
+                    ${metricCardHtml("net_profit", "Net Profit", "anNetProfit")}
+                    ${metricCardHtml("profit_margin", "Profit Margin", "anProfitMargin")}
+                    ${metricCardHtml("expense_ratio", "Expense Ratio", "anExpenseRatio")}
+                </div>
+            </div>
+            <div class="analytics-section">
+                <h3>Income & Expense Mix</h3>
+                <div class="analytics-grid">
+                    ${metricCardHtml("sales_accounts", "Sales Accounts", "anSalesAccounts")}
+                    ${metricCardHtml("direct_income", "Direct Income", "anDirectIncome")}
+                    ${metricCardHtml("indirect_income", "Indirect Income", "anIndirectIncome")}
+                    ${metricCardHtml("direct_expenses", "Direct Expenses", "anDirectExpenses")}
+                    ${metricCardHtml("indirect_expenses", "Indirect Expenses", "anIndirectExpenses")}
+                </div>
+                <div class="ranking-split-grid">
+                    ${rankingBoxHtml("Largest Income Accounts", "anTopIncome")}
+                    ${rankingBoxHtml("Largest Expense Accounts", "anTopExpenses")}
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="analytics-section">
+            <h3>Liquidity</h3>
+            <div class="analytics-grid">
+                ${metricCardHtml("cash_and_bank", "Cash & Bank", "anCashBank")}
+                ${metricCardHtml("receivables", "Receivables", "anReceivables")}
+                ${metricCardHtml("payables", "Payables", "anPayables")}
+                ${metricCardHtml("current_assets", "Current Assets", "anCurrentAssets")}
+                ${metricCardHtml("current_liabilities", "Current Liabilities", "anCurrentLiabilities")}
+                ${metricCardHtml("working_capital", "Working Capital", "anWorkingCapital")}
+            </div>
+        </div>
+        <div class="analytics-section">
+            <h3>Assets & Liabilities</h3>
+            <div class="analytics-grid">
+                ${metricCardHtml("fixed_assets", "Fixed Assets", "anFixedAssets")}
+                ${metricCardHtml("investments", "Investments", "anInvestments")}
+            </div>
+            <div class="ranking-split-grid">
+                ${rankingBoxHtml("Largest Assets", "anLargestAssets")}
+                ${rankingBoxHtml("Largest Liabilities", "anLargestLiabilities")}
+            </div>
+        </div>
+        <div class="analytics-section">
+            <h3>Income & Expenses</h3>
+            <div class="ranking-split-grid">
+                ${rankingBoxHtml("Largest Income Accounts", "anTopIncome")}
+                ${rankingBoxHtml("Largest Expense Accounts", "anTopExpenses")}
+            </div>
+        </div>
+    `;
 }
 
 function escapeHtml(value) {
@@ -388,10 +511,13 @@ function renderAnalytics(analytics) {
         return;
     }
     card.style.display = "block";
+    const container = card.querySelector(".analytics-container");
+    const profitLoss = isProfitLossReport();
+    if (container) renderAnalyticsLayout(container, profitLoss);
 
     const getMetricHtml = (obj) => {
         if (!obj || obj.value === null || obj.value === undefined) return "Not Available";
-        const value = escapeHtml(formatAmount(obj.value));
+        const value = escapeHtml(formatMetricValue(obj));
         if (obj.previous_value === null || obj.previous_value === undefined) {
             return value;
         }
@@ -400,19 +526,37 @@ function renderAnalytics(analytics) {
         const changeText = formatBusinessChange(obj);
         return `
             <span class="metric-current">${value}</span>
-            <span class="analytics-trend">Prev: ${escapeHtml(formatAmount(obj.previous_value))}</span>
+            <span class="analytics-trend">Prev: ${escapeHtml(formatMetricValue(obj, obj.previous_value))}</span>
             <span class="analytics-trend ${varianceClass}">${escapeHtml(changeText)}</span>
         `;
     };
 
-    document.getElementById("anCashBank").innerHTML = getMetricHtml(analytics.cash_and_bank);
-    document.getElementById("anReceivables").innerHTML = getMetricHtml(analytics.receivables);
-    document.getElementById("anPayables").innerHTML = getMetricHtml(analytics.payables);
-    document.getElementById("anCurrentAssets").innerHTML = getMetricHtml(analytics.current_assets);
-    document.getElementById("anCurrentLiabilities").innerHTML = getMetricHtml(analytics.current_liabilities);
-    document.getElementById("anWorkingCapital").innerHTML = getMetricHtml(analytics.working_capital);
-    document.getElementById("anFixedAssets").innerHTML = getMetricHtml(analytics.fixed_assets);
-    document.getElementById("anInvestments").innerHTML = getMetricHtml(analytics.investments);
+    const setMetric = (elementId, metric) => {
+        const element = document.getElementById(elementId);
+        if (element) element.innerHTML = getMetricHtml(metric);
+    };
+
+    if (profitLoss) {
+        setMetric("anTotalIncome", analytics.total_income);
+        setMetric("anTotalExpenses", analytics.total_expenses);
+        setMetric("anNetProfit", analytics.net_profit);
+        setMetric("anProfitMargin", analytics.profit_margin);
+        setMetric("anExpenseRatio", analytics.expense_ratio);
+        setMetric("anSalesAccounts", analytics.sales_accounts);
+        setMetric("anDirectIncome", analytics.direct_income);
+        setMetric("anIndirectIncome", analytics.indirect_income);
+        setMetric("anDirectExpenses", analytics.direct_expenses);
+        setMetric("anIndirectExpenses", analytics.indirect_expenses);
+    } else {
+        setMetric("anCashBank", analytics.cash_and_bank);
+        setMetric("anReceivables", analytics.receivables);
+        setMetric("anPayables", analytics.payables);
+        setMetric("anCurrentAssets", analytics.current_assets);
+        setMetric("anCurrentLiabilities", analytics.current_liabilities);
+        setMetric("anWorkingCapital", analytics.working_capital);
+        setMetric("anFixedAssets", analytics.fixed_assets);
+        setMetric("anInvestments", analytics.investments);
+    }
     bindAnalyticsCalculationCards(analytics);
 
     const renderRankingList = (list, elementId) => {
@@ -426,8 +570,10 @@ function renderAnalytics(analytics) {
         `).join("");
     };
 
-    renderRankingList(analytics.largest_assets, "anLargestAssets");
-    renderRankingList(analytics.largest_liabilities, "anLargestLiabilities");
+    if (!profitLoss) {
+        renderRankingList(analytics.largest_assets, "anLargestAssets");
+        renderRankingList(analytics.largest_liabilities, "anLargestLiabilities");
+    }
     renderRankingList(analytics.largest_income_accounts, "anTopIncome");
     renderRankingList(analytics.largest_expense_accounts, "anTopExpenses");
 }
@@ -485,7 +631,7 @@ function renderCalculationSection(title, calculation) {
                 </tbody>
             </table>
             <p class="calculation-result">
-                ${escapeHtml(calculation.result?.label || "Result")}: ${escapeHtml(formatAmount(calculation.result?.value))}
+                ${escapeHtml(calculation.result?.label || "Result")}: ${escapeHtml(formatMetricValue({ unit: calculation.unit }, calculation.result?.value))}
             </p>
         </div>
     `;
@@ -554,7 +700,15 @@ function closeCalculationModal() {
 
 function renderSummary(data) {
     const summary = data.summary || {};
-    const cards = [
+    const cards = isProfitLossReport(data) ? [
+        ["Statement Type", (data.statement_type || "-").replaceAll("_", " ")],
+        ["Mode", (data.mode || "-").replaceAll("_", " ")],
+        ["Income", formatAmount(summary.total_income)],
+        ["Expenses", formatAmount(summary.total_expenses)],
+        ["Net Profit", formatAmount(summary.net_profit)],
+        ["Profit Margin", `${formatAmount(summary.profit_margin)}%`],
+        ["Expense Ratio", `${formatAmount(summary.expense_ratio)}%`],
+    ] : [
         ["Statement Type", (data.statement_type || "-").replaceAll("_", " ")],
         ["Mode", (data.mode || "-").replaceAll("_", " ")],
         ["Income", formatAmount(summary.total_income)],
@@ -719,7 +873,13 @@ function exportPDF(data) {
     doc.text("1. Financial Summary", 14, 63);
     
     const summary = data.summary || {};
-    const summaryRows = [
+    const summaryRows = isProfitLossReport(data) ? [
+        ["Total Income", formatAmount(summary.total_income)],
+        ["Total Expenses", formatAmount(summary.total_expenses)],
+        ["Net Profit", formatAmount(summary.net_profit)],
+        ["Profit Margin", `${formatAmount(summary.profit_margin)}%`],
+        ["Expense Ratio", `${formatAmount(summary.expense_ratio)}%`]
+    ] : [
         ["Total Income", formatAmount(summary.total_income)],
         ["Total Expenses", formatAmount(summary.total_expenses)],
         ["Total Assets", formatAmount(summary.total_assets)],
@@ -743,31 +903,21 @@ function exportPDF(data) {
     doc.setFontSize(14);
     doc.text("2. Financial Analytics", 14, currentY);
     
-    const analytics = data.analytics || {};
-    const analyticsMetrics = [
-        ["Cash & Bank", analytics.cash_and_bank],
-        ["Receivables", analytics.receivables],
-        ["Payables", analytics.payables],
-        ["Current Assets", analytics.current_assets],
-        ["Current Liabilities", analytics.current_liabilities],
-        ["Working Capital", analytics.working_capital],
-        ["Fixed Assets", analytics.fixed_assets],
-        ["Investments", analytics.investments]
-    ];
+    const analyticsMetrics = getAnalyticsMetricRows(data);
     const hasAnalyticsComparison = analyticsMetrics.some(([, metric]) => metric && metric.previous_value !== undefined);
     const analyticsRows = analyticsMetrics.map(([label, metric]) => (
         hasAnalyticsComparison
             ? [
                 label,
-                formatAmount(metric?.previous_value),
-                formatAmount(metric?.value),
+                formatMetricValue(metric, metric?.previous_value),
+                formatMetricValue(metric),
                 formatAmount(metric?.variance_amount),
                 metric?.variance_percentage === null || metric?.variance_percentage === undefined
                     ? "-"
                     : `${formatAmount(metric.variance_percentage)}%`,
                 formatBusinessChange(metric)
             ]
-            : [label, formatAmount(metric?.value)]
+            : [label, formatMetricValue(metric)]
     ));
     
     doc.autoTable({
@@ -863,15 +1013,27 @@ function exportExcel(data) {
         ["Mode", (data.mode || "-").toUpperCase().replace("_", " ")]
     ];
     
-    summaryData.push(
-        [],
-        ["Metric", "Value"],
-        ["Total Income", formatRawNumber(summary.total_income)],
-        ["Total Expenses", formatRawNumber(summary.total_expenses)],
-        ["Total Assets", formatRawNumber(summary.total_assets)],
-        ["Total Liabilities", formatRawNumber(summary.total_liabilities)],
-        ["Total Equity", formatRawNumber(summary.equity)]
-    );
+    if (isProfitLossReport(data)) {
+        summaryData.push(
+            [],
+            ["Metric", "Value"],
+            ["Total Income", formatRawNumber(summary.total_income)],
+            ["Total Expenses", formatRawNumber(summary.total_expenses)],
+            ["Net Profit", formatRawNumber(summary.net_profit)],
+            ["Profit Margin", formatRawNumber(summary.profit_margin)],
+            ["Expense Ratio", formatRawNumber(summary.expense_ratio)]
+        );
+    } else {
+        summaryData.push(
+            [],
+            ["Metric", "Value"],
+            ["Total Income", formatRawNumber(summary.total_income)],
+            ["Total Expenses", formatRawNumber(summary.total_expenses)],
+            ["Total Assets", formatRawNumber(summary.total_assets)],
+            ["Total Liabilities", formatRawNumber(summary.total_liabilities)],
+            ["Total Equity", formatRawNumber(summary.equity)]
+        );
+    }
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
     XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
     
@@ -895,16 +1057,7 @@ function exportExcel(data) {
     
     // Sheet 3: Analytics
     const analytics = data.analytics || {};
-    const analyticsMetrics = [
-        ["Cash & Bank", analytics.cash_and_bank],
-        ["Receivables", analytics.receivables],
-        ["Payables", analytics.payables],
-        ["Current Assets", analytics.current_assets],
-        ["Current Liabilities", analytics.current_liabilities],
-        ["Working Capital", analytics.working_capital],
-        ["Fixed Assets", analytics.fixed_assets],
-        ["Investments", analytics.investments]
-    ];
+    const analyticsMetrics = getAnalyticsMetricRows(data);
     const hasAnalyticsComparison = analyticsMetrics.some(([, metric]) => metric && metric.previous_value !== undefined);
     const analyticsData = [
         ["FinSight AI - Financial Analytics"],
@@ -939,8 +1092,10 @@ function exportExcel(data) {
         }
     };
     
-    addRankingToSheet("Largest Assets", analytics.largest_assets);
-    addRankingToSheet("Largest Liabilities", analytics.largest_liabilities);
+    if (!isProfitLossReport(data)) {
+        addRankingToSheet("Largest Assets", analytics.largest_assets);
+        addRankingToSheet("Largest Liabilities", analytics.largest_liabilities);
+    }
     addRankingToSheet("Top Income Accounts", analytics.largest_income_accounts);
     addRankingToSheet("Top Expense Accounts", analytics.largest_expense_accounts);
     
